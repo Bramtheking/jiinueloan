@@ -1,15 +1,12 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+import os
+from dotenv import load_dotenv
+
+# Load .env file if it exists (local dev). On Render the var is injected directly.
+load_dotenv()
 
 
-class Settings(BaseSettings):
-    database_url: str
-
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        env_ignore_empty=True,
-        extra="ignore",
-    )
+class Settings:
+    database_url: str = os.environ["DATABASE_URL"]
 
 
 settings = Settings()

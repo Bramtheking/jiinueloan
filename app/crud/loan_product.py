@@ -35,7 +35,7 @@ def create_product(db: Session, data: LoanProductCreate) -> LoanProduct:
         )
 
     product = LoanProduct(
-        **data.model_dump(exclude={"fees"}),
+        **data.dict(exclude={"fees"}),
         version_number=1,
         is_active=True,
     )
@@ -43,7 +43,7 @@ def create_product(db: Session, data: LoanProductCreate) -> LoanProduct:
     db.flush()  # get product.id
 
     for fee_data in data.fees:
-        db.add(LoanProductFee(loan_product_id=product.id, **fee_data.model_dump()))
+        db.add(LoanProductFee(loan_product_id=product.id, **fee_data.dict()))
 
     log_action(db, "loan_product", product.id, "created", {
         "product_code": product.product_code,
@@ -70,7 +70,7 @@ def update_product(db: Session, product_code: str, data: LoanProductCreate) -> L
 
     new_version = old.version_number + 1
     product = LoanProduct(
-        **data.model_dump(exclude={"fees"}),
+        **data.dict(exclude={"fees"}),
         product_code=product_code,  # always same code
         version_number=new_version,
         is_active=True,
@@ -79,7 +79,7 @@ def update_product(db: Session, product_code: str, data: LoanProductCreate) -> L
     db.flush()
 
     for fee_data in data.fees:
-        db.add(LoanProductFee(loan_product_id=product.id, **fee_data.model_dump()))
+        db.add(LoanProductFee(loan_product_id=product.id, **fee_data.dict()))
 
     log_action(db, "loan_product", product.id, "updated", {
         "product_code": product_code,

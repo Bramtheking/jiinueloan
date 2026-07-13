@@ -14,12 +14,13 @@ class MemberRead(BaseModel):
     savings_balance: Decimal
     created_at: datetime
 
-    model_config = {"from_attributes": True}
+    class Config:
+        orm_mode = True
 
 
 class LoanCreate(BaseModel):
     member_id: int
-    loan_product_id: int                   # specific version
+    loan_product_id: int
     guarantor_member_id: Optional[int] = None
     principal_amount: Decimal
     application_date: date
@@ -46,7 +47,8 @@ class LoanRead(BaseModel):
     outstanding_balance: Decimal
     created_at: datetime
 
-    model_config = {"from_attributes": True}
+    class Config:
+        orm_mode = True
 
 
 class LoanUpdate(BaseModel):
