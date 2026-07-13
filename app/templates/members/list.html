@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Members{% endblock %}
+{% block page_title %}Members{% endblock %}
+{% block breadcrumb %}<a href="/">Home</a> / Members{% endblock %}
+
+{% block topbar_actions %}
+  <a href="/members/new" class="btn btn-primary btn-sm"><i data-feather="plus" style="width: 14px; height: 14px;"></i> Add Member</a>
+{% endblock %}
+
+{% block content %}
+<div class="alert alert-info">
+  <i data-feather="info" style="width: 14px; height: 14px;"></i> Members can now be added or edited for testing purposes.
+</div>
+<div class="card">
+  <div class="card-header">
+    <h2>All Members</h2>
+    <span class="text-muted" style="font-size:12px">{{ members | length }} records</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Phone</th>
+          <th class="text-right">Savings Balance (KES)</th>
+          <th>Joined</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in members %}
+        <tr>
+          <td class="mono">{{ m.id }}</td>
+          <td class="fw-600">{{ m.name }}</td>
+          <td class="text-muted">{{ m.phone or '—' }}</td>
+          <td class="text-right">
+            <span class="{% if m.savings_balance > 0 %}amount-in{% else %}text-muted{% endif %}">
+              {{ "{:,.2f}".format(m.savings_balance) }}
+            </span>
+          </td>
+          <td class="text-muted">{{ m.created_at.strftime('%Y-%m-%d') if m.created_at else '—' }}</td>
+          <td>
+            <a href="/members/{{ m.id }}/edit" class="btn btn-outline btn-xs">Edit</a>
+            <form method="POST" action="/members/{{ m.id }}/delete" style="display:inline" onsubmit="return confirm('Delete this member?');">
+              <button type="submit" class="btn btn-danger btn-xs">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr class="table-empty"><td colspan="6">No members found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

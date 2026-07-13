@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}All Loans{% endblock %}
+{% block page_title %}All Loans{% endblock %}
+{% block breadcrumb %}<a href="/">Home</a> / Loans{% endblock %}
+
+{% block topbar_actions %}
+  <a href="/loans/apply" class="btn btn-primary btn-sm"><i data-feather="plus-circle" style="width: 14px; height: 14px;"></i> Apply Loan</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h2>Loan Portfolio</h2>
+    <span class="text-muted" style="font-size:12px">{{ loans | length }} loans</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Loan #</th>
+          <th>Member</th>
+          <th>Product</th>
+          <th>Status</th>
+          <th class="text-right">Principal</th>
+          <th class="text-right">Outstanding</th>
+          <th>Applied</th>
+          <th>Disbursed</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for loan in loans %}
+        <tr>
+          <td><code>{{ loan.loan_number }}</code></td>
+          <td class="fw-600">{{ loan.member.name if loan.member else loan.member_id }}</td>
+          <td class="text-muted">
+            {{ loan.loan_product.product_name if loan.loan_product else '—' }}
+            <span class="text-muted" style="font-size:10px">v{{ loan.loan_product.version_number if loan.loan_product else '' }}</span>
+          </td>
+          <td><span class="badge badge-{{ loan.status.value }}">{{ loan.status.value.replace('_', ' ').title() }}</span></td>
+          <td class="text-right">{{ "{:,.2f}".format(loan.principal_amount) }}</td>
+          <td class="text-right">
+            {% if loan.outstanding_balance > 0 %}
+              <span class="amount-out">{{ "{:,.2f}".format(loan.outstanding_balance) }}</span>
+            {% else %}
+              <span class="text-muted">0.00</span>
+            {% endif %}
+          </td>
+          <td class="text-muted">{{ loan.application_date }}</td>
+          <td class="text-muted">{{ loan.disbursement_date or '—' }}</td>
+          <td>
+            <a href="/loans/{{ loan.id }}" class="btn btn-outline btn-xs">View</a>
+            <a href="/loans/{{ loan.id }}/edit" class="btn btn-outline btn-xs">Edit</a>
+            <form method="POST" action="/loans/{{ loan.id }}/delete" style="display:inline" onsubmit="return confirm('Delete loan {{ loan.loan_number }}? This will also remove all repayments and ledger entries.');">
+              <button type="submit" class="btn btn-danger btn-xs">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr class="table-empty"><td colspan="9">No loans yet. <a href="/loans/apply">Apply the first loan</a>.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

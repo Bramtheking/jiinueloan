@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Loan Products{% endblock %}
+{% block page_title %}Loan Products{% endblock %}
+{% block breadcrumb %}<a href="/">Home</a> / Loan Products{% endblock %}
+
+{% block topbar_actions %}
+  <a href="/loan-products/new" class="btn btn-primary btn-sm"><i data-feather="plus" style="width: 14px; height: 14px;"></i> New Product</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h2>All Versions</h2>
+    <span class="text-muted" style="font-size:12px">Editing creates a new version — old versions preserved for existing loans</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Code</th>
+          <th>Ver</th>
+          <th>Name</th>
+          <th>Status</th>
+          <th>Method</th>
+          <th>Rate</th>
+          <th>Period</th>
+          <th>Repayment</th>
+          <th>Max Periods</th>
+          <th>Guarantor</th>
+          <th>Savings ×</th>
+          <th>Security</th>
+          <th>Deposit</th>
+          <th>Fees</th>
+          <th>Effective</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in products %}
+        <tr>
+          <td class="mono">{{ p.id }}</td>
+          <td><code>{{ p.product_code }}</code></td>
+          <td class="text-muted">v{{ p.version_number }}</td>
+          <td class="fw-600">{{ p.product_name }}</td>
+          <td>
+            {% if p.is_active %}
+              <span class="badge badge-active">Active</span>
+            {% else %}
+              <span class="badge badge-closed">Inactive</span>
+            {% endif %}
+          </td>
+          <td>{{ p.interest_method.value.replace('_', ' ').title() }}</td>
+          <td>{{ p.interest_rate }}%</td>
+          <td>{{ p.interest_period.value }}</td>
+          <td>{{ p.repayment_frequency.value }}</td>
+          <td>{{ p.max_repayment_period or '—' }}</td>
+          <td>
+            {% if p.requires_guarantor %}<span class="badge badge-warning">Yes</span>
+            {% else %}<span class="text-muted">No</span>{% endif %}
+          </td>
+          <td>
+            {% if p.is_multiple_of_savings %}{{ p.savings_multiplier }}×
+            {% else %}<span class="text-muted">No</span>{% endif %}
+          </td>
+          <td>
+            {% if p.requires_security %}
+              <span class="badge badge-info">
+                {{ p.security_type.value if p.security_type else '' }}
+                {% if p.security_value %} · {{ p.security_value }}{% endif %}
+              </span>
+            {% else %}<span class="text-muted">No</span>{% endif %}
+          </td>
+          <td>
+            {% if p.requires_deposit %}
+              {{ p.deposit_type.value if p.deposit_type else '' }}
+              {% if p.deposit_value %} · {{ p.deposit_value }}{% endif %}
+            {% else %}<span class="text-muted">No</span>{% endif %}
+          </td>
+          <td>{{ p.fees | length }}</td>
+          <td class="text-muted">{{ p.effective_date }}</td>
+          <td>
+            {% if p.is_active %}
+            <a href="/loan-products/{{ p.id }}/edit" class="btn btn-outline btn-xs">Edit (new ver)</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr class="table-empty"><td colspan="17">No loan products yet. <a href="/loan-products/new">Create one</a>.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en" style="background:#0f1117;">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Jiinue Loans{% endblock %} — Admin</title>
+  <meta name="description" content="Jiinue SACCO Loan Management Admin Panel">
+  <style>html,body{background:#0f1117;}</style>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://unpkg.com/feather-icons"></script>
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="brand"><span class="dot"></span>Jiinue</div>
+    <div class="sub">Loan Engine · Admin</div>
+  </div>
+
+  <div class="nav-section">Overview</div>
+  <a href="/" class="nav-item {% if request.url.path == '/' %}active{% endif %}">
+    <i data-feather="grid" class="icon"></i> Dashboard
+  </a>
+
+  <div class="nav-section">Loans</div>
+  <a href="/members" class="nav-item {% if '/members' in request.url.path %}active{% endif %}">
+    <i data-feather="users" class="icon"></i> Members
+  </a>
+  <a href="/loans" class="nav-item {% if '/loans' in request.url.path %}active{% endif %}">
+    <i data-feather="list" class="icon"></i> All Loans
+  </a>
+  <a href="/loans/apply" class="nav-item {% if request.url.path == '/loans/apply' %}active{% endif %}">
+    <i data-feather="plus-circle" class="icon"></i> Apply Loan
+  </a>
+
+  <div class="nav-section">Configuration</div>
+  <a href="/loan-products" class="nav-item {% if '/loan-products' in request.url.path %}active{% endif %}">
+    <i data-feather="settings" class="icon"></i> Loan Products
+  </a>
+
+  <div class="nav-section">Finance</div>
+  <a href="/ledger" class="nav-item {% if '/ledger' in request.url.path %}active{% endif %}">
+    <i data-feather="book" class="icon"></i> Ledger
+  </a>
+  <a href="/audit-log" class="nav-item {% if '/audit-log' in request.url.path %}active{% endif %}">
+    <i data-feather="search" class="icon"></i> Audit Log
+  </a>
+
+  <div class="nav-section">Developer</div>
+  <a href="/docs" class="nav-item" target="_blank">
+    <i data-feather="book-open" class="icon"></i> API Docs
+  </a>
+
+  <div class="sidebar-footer">
+    Jiinue v1.0 · Admin Only
+  </div>
+</nav>
+
+<!-- Main -->
+<div class="main">
+  <div class="topbar">
+    <div>
+      <div class="breadcrumb">
+        {% block breadcrumb %}<a href="/">Home</a>{% endblock %}
+      </div>
+      <h1>{% block page_title %}Dashboard{% endblock %}</h1>
+    </div>
+    <div class="flex gap-2">
+      {% block topbar_actions %}{% endblock %}
+    </div>
+  </div>
+
+  <div class="content">
+    {% block content %}{% endblock %}
+  </div>
+</div>
+
+<script>
+// Toggle conditional form sections based on checkbox state
+function toggleConditional(checkboxId, targetId) {
+  const cb = document.getElementById(checkboxId);
+  const target = document.getElementById(targetId);
+  if (!cb || !target) return;
+  const update = () => { target.style.display = cb.checked ? 'block' : 'none'; };
+  cb.addEventListener('change', update);
+  update();
+}
+
+// Fee row management
+function addFeeRow() {
+  const container = document.getElementById('fee-rows');
+  if (!container) return;
+  const idx = container.querySelectorAll('.fee-row').length;
+  const row = document.createElement('div');
+  row.className = 'fee-row';
+  row.innerHTML = `
+    <div class="form-group">
+      <input name="fee_name" placeholder="Fee name" required>
+    </div>
+    <div class="form-group">
+      <select name="fee_type">
+        <option value="percentage">Percentage</option>
+        <option value="fixed_amount">Fixed Amount</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <input name="fee_value" type="number" step="0.01" placeholder="Value" required>
+    </div>
+    <div class="form-group">
+      <input name="ledger_account_name" placeholder="Ledger account" required>
+    </div>
+    <button type="button" class="btn btn-danger btn-xs" onclick="this.closest('.fee-row').remove()">Remove</button>
+  `;
+  container.appendChild(row);
+}
+
+// Product info loader (for apply-loan page)
+async function loadProductDetails(selectEl) {
+  const productId = selectEl.value;
+  if (!productId) return;
+  try {
+    const res = await fetch(`/api/loan-products/${productId}`);
+    const p = await res.json();
+    // Show/hide guarantor field
+    const gBlock = document.getElementById('guarantor-block');
+    if (gBlock) gBlock.style.display = p.requires_guarantor ? 'block' : 'none';
+    // Show/hide security
+    const sBlock = document.getElementById('security-block');
+    if (sBlock) sBlock.style.display = p.requires_security ? 'block' : 'none';
+    // Show/hide deposit
+    const dBlock = document.getElementById('deposit-block');
+    if (dBlock) dBlock.style.display = p.requires_deposit ? 'block' : 'none';
+    // Product info panel
+    const infoEl = document.getElementById('product-info');
+    if (infoEl) {
+      infoEl.style.display = 'block';
+      infoEl.innerHTML = `
+        <div class="info-grid">
+          <div class="info-item"><label>Method</label><div class="val">${p.interest_method.replace('_', ' ')}</div></div>
+          <div class="info-item"><label>Rate</label><div class="val">${p.interest_rate}% / ${p.interest_period}</div></div>
+          <div class="info-item"><label>Repayment</label><div class="val">${p.repayment_frequency}</div></div>
+          <div class="info-item"><label>Max Periods</label><div class="val">${p.max_repayment_period || '—'}</div></div>
+          ${p.requires_guarantor ? '<div class="info-item"><label>Guarantor</label><div class="val badge badge-warning">Required</div></div>' : ''}
+          ${p.requires_security ? '<div class="info-item"><label>Security</label><div class="val">' + (p.security_type || '') + (p.security_value ? ' · ' + p.security_value + '%' : '') + '</div></div>' : ''}
+        </div>
+      `;
+    }
+  } catch(e) { console.error(e); }
+}
+</script>
+
+{% block scripts %}{% endblock %}
+<script>
+  feather.replace();
+</script>
+</body>
+</html>

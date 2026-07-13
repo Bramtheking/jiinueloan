@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ loan.loan_number }}{% endblock %}
+{% block page_title %}Edit Loan{% endblock %}
+{% block breadcrumb %}<a href="/">Home</a> / <a href="/loans">Loans</a> / <a href="/loans/{{ loan.id }}">{{ loan.loan_number }}</a> / Edit{% endblock %}
+
+{% block content %}
+{% if error %}
+<div class="alert alert-danger"><i data-feather="alert-triangle" style="width: 14px; height: 14px;"></i> {{ error }}</div>
+{% endif %}
+
+<form method="POST" action="/loans/{{ loan.id }}/edit">
+  <div class="card">
+    <div class="card-header"><h2>Loan Details — {{ loan.loan_number }}</h2></div>
+    <div class="card-body">
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Loan Number</label>
+          <input value="{{ loan.loan_number }}" disabled style="opacity:0.5; cursor:not-allowed;">
+          <span class="form-hint">Loan number is system-generated and cannot be changed.</span>
+        </div>
+        <div class="form-group">
+          <label>Status *</label>
+          <select name="status" required>
+            {% for s in statuses %}
+            <option value="{{ s }}" {% if s == loan.status.value %}selected{% endif %}>{{ s.replace('_', ' ').title() }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Outstanding Balance (KES) *</label>
+          <input name="outstanding_balance" type="number" step="0.01" value="{{ loan.outstanding_balance }}" required>
+          <span class="form-hint">Warning: manually adjusting this bypasses repayment engine logic.</span>
+        </div>
+        <div class="form-group">
+          <label>Guarantor Member ID</label>
+          <input name="guarantor_member_id" type="number" value="{{ loan.guarantor_member_id or '' }}" placeholder="Leave blank if none">
+        </div>
+        <div class="form-group">
+          <label>Security Provided Value (KES)</label>
+          <input name="security_provided_value" type="number" step="0.01" value="{{ loan.security_provided_value or '' }}">
+        </div>
+        <div class="form-group">
+          <label>Security Notes</label>
+          <input name="security_provided_notes" value="{{ loan.security_provided_notes or '' }}">
+        </div>
+        <div class="form-group">
+          <label>Deposit Paid (KES)</label>
+          <input name="deposit_paid_amount" type="number" step="0.01" value="{{ loan.deposit_paid_amount or '' }}">
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="flex gap-2">
+    <button type="submit" class="btn btn-primary">
+      <i data-feather="save" style="width: 16px; height: 16px;"></i> Save Changes
+    </button>
+    <a href="/loans/{{ loan.id }}" class="btn btn-outline">Cancel</a>
+  </div>
+</form>
+{% endblock %}

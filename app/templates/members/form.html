@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}{% if member %}Edit {{ member.name }}{% else %}New Member{% endif %}{% endblock %}
+
+{% block page_title %}{% if member %}Edit Member{% else %}New Member{% endif %}{% endblock %}
+
+{% block breadcrumb %}
+<a href="/">Home</a> / <a href="/members">Members</a> / {% if member %}Edit{% else %}New{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if error %}
+<div class="alert alert-danger"><i data-feather="alert-triangle" style="width: 14px; height: 14px;"></i> {{ error }}</div>
+{% endif %}
+
+<form method="POST" action="{% if member %}/members/{{ member.id }}/edit{% else %}/members/new{% endif %}">
+  <div class="card">
+    <div class="card-header"><h2>Member Details</h2></div>
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Full Name *</label>
+          <input name="name" value="{{ member.name if member else '' }}" required placeholder="e.g. John Doe">
+        </div>
+        <div class="form-group">
+          <label>Phone Number</label>
+          <input name="phone" value="{{ member.phone if member and member.phone else '' }}" placeholder="e.g. 0712345678">
+        </div>
+        <div class="form-group">
+          <label>Savings Balance (KES) *</label>
+          <input name="savings_balance" type="number" step="0.01" value="{{ member.savings_balance if member else '0.00' }}" required>
+          <span class="form-hint">Normally managed by savings module, editable here for testing.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex gap-2">
+    <button type="submit" class="btn btn-primary">
+      {% if member %}<i data-feather="save" style="width: 16px; height: 16px;"></i> Save Changes{% else %}<i data-feather="user-plus" style="width: 16px; height: 16px;"></i> Add Member{% endif %}
+    </button>
+    <a href="/members" class="btn btn-outline">Cancel</a>
+  </div>
+</form>
+{% endblock %}

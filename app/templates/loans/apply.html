@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Apply Loan{% endblock %}
+{% block page_title %}Apply Loan{% endblock %}
+{% block breadcrumb %}<a href="/">Home</a> / <a href="/loans">Loans</a> / Apply{% endblock %}
+
+{% block content %}
+{% if error %}
+<div class="alert alert-danger"><i data-feather="alert-triangle" style="width: 14px; height: 14px;"></i> {{ error }}</div>
+{% endif %}
+
+<form method="POST" action="/loans/apply">
+
+  <div class="card">
+    <div class="card-header"><h2>Step 1 — Select Member &amp; Product</h2></div>
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Borrower *</label>
+          <select name="member_id" required id="member-select">
+            <option value="">— Select member —</option>
+            {% for m in members %}
+            <option value="{{ m.id }}">{{ m.name }} (Savings: KES {{ "{:,.0f}".format(m.savings_balance) }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Loan Product (Active Version) *</label>
+          <select name="loan_product_id" required id="product-select" onchange="loadProductDetails(this)">
+            <option value="">— Select product —</option>
+            {% for p in products %}
+            <option value="{{ p.id }}">{{ p.product_name }} [{{ p.product_code }} v{{ p.version_number }}]</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <!-- Product info panel (populated via JS) -->
+      <div id="product-info" class="form-section" style="display:none; margin-top:16px">
+        <div class="form-section-title">Product Details</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2>Step 2 — Loan Details</h2></div>
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Requested Principal (KES) *</label>
+          <input name="principal_amount" type="number" step="0.01" required placeholder="e.g. 100000">
+        </div>
+        <div class="form-group">
+          <label>Application Date *</label>
+          <input name="application_date" type="date" value="{{ today }}" required>
+        </div>
+        <div class="form-group">
+          <label>Disbursement Date</label>
+          <input name="disbursement_date" type="date" value="{{ today }}">
+          <span class="form-hint">Defaults to application date if left blank</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Guarantor (shown conditionally by JS) -->
+  <div class="card" id="guarantor-block" style="display:none">
+    <div class="card-header"><h2>Step 3 — Guarantor</h2></div>
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Guarantor Member *</label>
+          <select name="guarantor_member_id" id="guarantor-select">
+            <option value="">— Select guarantor —</option>
+            {% for m in members %}
+            <option value="{{ m.id }}">{{ m.name }}</option>
+            {% endfor %}
+          </select>
+          <span class="form-hint">Must be a different member from the borrower.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Security (shown conditionally by JS) -->
+  <div class="card" id="security-block" style="display:none">
+    <div class="card-header"><h2>Security / Collateral</h2></div>
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Security Value Provided (KES)</label>
+          <input name="security_provided_value" type="number" step="0.01" placeholder="Market value of collateral">
+        </div>
+        <div class="form-group">
+          <label>Security Notes</label>
+          <input name="security_provided_notes" placeholder="e.g. Title deed LR/123, Vehicle KBZ 123A">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Deposit (shown conditionally by JS) -->
+  <div class="card" id="deposit-block" style="display:none">
+    <div class="card-header"><h2>Upfront Deposit</h2></div>
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Deposit Amount Collected (KES)</label>
+          <input name="deposit_paid_amount" type="number" step="0.01" placeholder="Amount collected from member">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex gap-2">
+    <button type="submit" class="btn btn-primary"><i data-feather="check-circle" style="width: 16px; height: 16px;"></i> Submit Loan Application</button>
+    <a href="/loans" class="btn btn-outline">Cancel</a>
+  </div>
+
+</form>
+{% endblock %}

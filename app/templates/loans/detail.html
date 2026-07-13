@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}{{ loan.loan_number }}{% endblock %}
+{% block page_title %}Loan: {{ loan.loan_number }}{% endblock %}
+{% block breadcrumb %}<a href="/">Home</a> / <a href="/loans">Loans</a> / {{ loan.loan_number }}{% endblock %}
+
+{% block topbar_actions %}
+  <div class="flex gap-2">
+    <span class="badge badge-{{ loan.status.value }}" style="font-size:13px; padding:6px 14px">
+      {{ loan.status.value.replace('_', ' ').title() }}
+    </span>
+    <a href="/loans/{{ loan.id }}/edit" class="btn btn-outline btn-sm"><i data-feather="edit-2" style="width:14px;height:14px"></i> Edit</a>
+    <form method="POST" action="/loans/{{ loan.id }}/delete" style="display:inline" onsubmit="return confirm('Delete loan {{ loan.loan_number }}? This will remove all repayments and ledger entries.');">
+      <button type="submit" class="btn btn-danger btn-sm"><i data-feather="trash-2" style="width:14px;height:14px"></i> Delete</button>
+    </form>
+  </div>
+{% endblock %}
+
+{% block content %}
+{% if error %}
+<div class="alert alert-danger"><i data-feather="alert-triangle" style="width: 14px; height: 14px;"></i> {{ error }}</div>
+{% endif %}
+
+<!-- Loan Summary -->
+<div class="card">
+  <div class="card-header"><h2>Loan Summary</h2></div>
+  <div class="card-body">
+    <div class="info-grid">
+      <div class="info-item"><label>Loan Number</label><div class="val mono">{{ loan.loan_number }}</div></div>
+      <div class="info-item"><label>Borrower</label><div class="val">{{ loan.member.name if loan.member else loan.member_id }}</div></div>
+      <div class="info-item"><label>Product</label>
+        <div class="val">
+          {% if loan.loan_product %}
+            {{ loan.loan_product.product_name }}
+            <span class="text-muted" style="font-size:11px">v{{ loan.loan_product.version_number }}</span>
+          {% else %}—{% endif %}
+        </div>
+      </div>
+      <div class="info-item"><label>Guarantor</label>
+        <div class="val">{{ loan.guarantor.name if loan.guarantor else '—' }}</div>
+      </div>
+      <div class="info-item"><label>Principal</label>
+        <div class="val">KES {{ "{:,.2f}".format(loan.principal_amount) }}</div>
+      </div>
+      <div class="info-item"><label>Outstanding Balance</label>
+        <div class="val {% if loan.outstanding_balance > 0 %}amount-out{% else %}amount-in{% endif %}">
+          KES {{ "{:,.2f}".format(loan.outstanding_balance) }}
+        </div>
+      </div>
+      <div class="info-item"><label>Applied</label><div class="val">{{ loan.application_date }}</div></div>
+      <div class="info-item"><label>Disbursed</label><div class="val">{{ loan.disbursement_date or '—' }}</div></div>
+      {% if loan.security_provided_value %}
+      <div class="info-item"><label>Security Value</label><div class="val">KES {{ "{:,.2f}".format(loan.security_provided_value) }}</div></div>
+      {% endif %}
+      {% if loan.security_provided_notes %}
+      <div class="info-item"><label>Security Notes</label><div class="val">{{ loan.security_provided_notes }}</div></div>
+      {% endif %}
+      {% if loan.deposit_paid_amount %}
+      <div class="info-item"><label>Deposit Paid</label><div class="val">KES {{ "{:,.2f}".format(loan.deposit_paid_amount) }}</div></div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Product Config (for reference) -->
+{% if loan.loan_product %}
+<div class="card">
+  <div class="card-header"><h2>Product Configuration (at time of issuance)</h2></div>
+  <div class="card-body">
+    <div class="info-grid">
+      <div class="info-item"><label>Method</label><div class="val">{{ loan.loan_product.interest_method.value.replace('_', ' ').title() }}</div></div>
+      <div class="info-item"><label>Rate</label><div class="val">{{ loan.loan_product.interest_rate }}% / {{ loan.loan_product.interest_period.value }}</div></div>
+      <div class="info-item"><label>Repayment</label><div class="val">{{ loan.loan_product.repayment_frequency.value.title() }}</div></div>
+      <div class="info-item"><label>Max Periods</label><div class="val">{{ loan.loan_product.max_repayment_period or '—' }}</div></div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div style="display:grid; grid-template-columns:1fr 380px; gap:20px; align-items:start">
+
+  <!-- Repayment History -->
+  <div class="card">
+    <div class="card-header">
+      <h2>Repayment History</h2>
+      <span class="text-muted" style="font-size:12px">{{ repayments | length }} payment(s)</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Date</th>
+            <th class="text-right">Paid</th>
+            <th class="text-right">→ Penalty</th>
+            <th class="text-right">→ Interest</th>
+            <th class="text-right">→ Principal</th>
+            <th class="text-right">Balance After</th>
+            <th>Flags</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in repayments %}
+          <tr>
+            <td class="text-muted">{{ loop.index }}</td>
+            <td>{{ r.payment_date }}</td>
+            <td class="text-right amount-in">{{ "{:,.2f}".format(r.amount_paid) }}</td>
+            <td class="text-right {% if r.amount_to_penalty > 0 %}amount-out{% else %}text-muted{% endif %}">
+              {{ "{:,.2f}".format(r.amount_to_penalty) }}
+            </td>
+            <td class="text-right text-muted">{{ "{:,.2f}".format(r.amount_to_interest) }}</td>
+            <td class="text-right text-muted">{{ "{:,.2f}".format(r.amount_to_principal) }}</td>
+            <td class="text-right">{{ "{:,.2f}".format(r.remaining_balance_after) }}</td>
+            <td>
+              {% if r.is_underpaid %}<span class="badge badge-warning">Underpaid</span>{% endif %}
+              {% if r.is_overpaid %}<span class="badge badge-info">Overpaid</span>{% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr class="table-empty"><td colspan="8">No repayments recorded yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Record Repayment -->
+  <div>
+    {% if loan.status.value == 'active' %}
+    <div class="card">
+      <div class="card-header"><h2>Record Repayment</h2></div>
+      <div class="card-body">
+        <form method="POST" action="/loans/{{ loan.id }}/repayments">
+          <div class="form-group" style="margin-bottom:12px">
+            <label>Payment Date *</label>
+            <input name="payment_date" type="date" value="{{ today }}" required>
+          </div>
+          <div class="form-group" style="margin-bottom:12px">
+            <label>Amount Paid (KES) *</label>
+            <input name="amount_paid" type="number" step="0.01" required
+                   placeholder="e.g. 10000">
+          </div>
+          <div class="form-group" style="margin-bottom:16px">
+            <label>Notes</label>
+            <textarea name="notes" placeholder="Optional payment notes" rows="2"></textarea>
+          </div>
+          <div class="alert alert-info" style="font-size:12px">
+            Allocation order: <strong>Penalty → Interest → Principal</strong>
+          </div>
+          <button type="submit" class="btn btn-success" style="width:100%;margin-top:10px">
+            <i data-feather="dollar-sign" style="width: 16px; height: 16px;"></i> Record Payment
+          </button>
+        </form>
+      </div>
+    </div>
+    {% else %}
+    <div class="card">
+      <div class="card-body text-center text-muted">
+        Loan is <strong>{{ loan.status.value }}</strong> — no further repayments accepted.
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Ledger Entries for this loan -->
+    <div class="card" style="margin-top:0">
+      <div class="card-header"><h2>Ledger Entries</h2></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Account</th>
+              <th class="text-right">In</th>
+              <th class="text-right">Out</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for txn in ledger_entries %}
+            <tr {% if txn.is_reversed %}style="opacity:0.45; text-decoration:line-through"{% endif %}>
+              <td class="text-muted">{{ txn.transaction_date }}</td>
+              <td style="font-size:11px">{{ txn.account_name }}</td>
+              <td class="text-right amount-in">{% if txn.money_in %}{{ "{:,.2f}".format(txn.money_in) }}{% else %}—{% endif %}</td>
+              <td class="text-right amount-out">{% if txn.money_out %}{{ "{:,.2f}".format(txn.money_out) }}{% else %}—{% endif %}</td>
+            </tr>
+            {% else %}
+            <tr class="table-empty"><td colspan="4">No ledger entries.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

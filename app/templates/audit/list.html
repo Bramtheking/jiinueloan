@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Audit Log{% endblock %}
+{% block page_title %}Audit Log{% endblock %}
+{% block breadcrumb %}<a href="/">Home</a> / Audit Log{% endblock %}
+
+{% block content %}
+<!-- Filter -->
+<div class="card">
+  <div class="card-header"><h2>Filter</h2></div>
+  <div class="card-body">
+    <form method="GET" action="/audit-log">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Entity Type</label>
+          <select name="entity_type">
+            <option value="">— All —</option>
+            <option value="loan" {% if filter_entity == 'loan' %}selected{% endif %}>loan</option>
+            <option value="loan_product" {% if filter_entity == 'loan_product' %}selected{% endif %}>loan_product</option>
+            <option value="repayment" {% if filter_entity == 'repayment' %}selected{% endif %}>repayment</option>
+            <option value="ledger_transaction" {% if filter_entity == 'ledger_transaction' %}selected{% endif %}>ledger_transaction</option>
+          </select>
+        </div>
+      </div>
+      <div class="flex gap-2 mt-4">
+        <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+        <a href="/audit-log" class="btn btn-outline btn-sm">Clear</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2>All Audit Events</h2>
+    <span class="text-muted" style="font-size:12px">{{ entries | length }} entries · Read-only</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Timestamp</th>
+          <th>Entity Type</th>
+          <th>Entity ID</th>
+          <th>Action</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in entries %}
+        <tr>
+          <td class="mono text-muted">{{ e.id }}</td>
+          <td class="text-muted" style="font-size:12px; white-space:nowrap">
+            {{ e.timestamp.strftime('%Y-%m-%d %H:%M:%S') if e.timestamp else '—' }}
+          </td>
+          <td><code>{{ e.entity_type }}</code></td>
+          <td>{{ e.entity_id }}</td>
+          <td>
+            {% if e.action == 'created' %}
+              <span class="badge badge-success">created</span>
+            {% elif e.action in ('updated', 'deactivated') %}
+              <span class="badge badge-warning">{{ e.action }}</span>
+            {% elif e.action == 'reversed' %}
+              <span class="badge badge-danger">reversed</span>
+            {% else %}
+              <span class="badge badge-neutral">{{ e.action }}</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if e.details %}
+            <details>
+              <summary style="cursor:pointer; font-size:11px; color:var(--text-muted)">View</summary>
+              <pre style="font-size:11px; background:var(--bg); padding:8px; border-radius:4px; margin-top:6px; white-space:pre-wrap; max-width:400px">{{ e.details }}</pre>
+            </details>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr class="table-empty"><td colspan="6">No audit entries yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+{% block title %}{% if product %}Edit {{ product.product_name }}{% else %}New Loan Product{% endif %}{% endblock %}
+
+{% block page_title %}{% if product %}Edit Loan Product — New Version{% else %}New Loan Product{% endif %}{% endblock %}
+
+{% block breadcrumb %}
+<a href="/">Home</a> / <a href="/loan-products">Loan Products</a> / {% if product %}Edit{% else %}New{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if error %}
+<div class="alert alert-danger"><i data-feather="alert-triangle" style="width: 14px; height: 14px;"></i> {{ error }}</div>
+{% endif %}
+
+{% if product %}
+<div class="alert alert-info">
+  <i data-feather="info" style="width: 14px; height: 14px;"></i> You are creating a <strong>new version</strong> of <strong>{{ product.product_code }}</strong>
+  (currently v{{ product.version_number }}). The old version will be deactivated. Existing loans are unaffected.
+</div>
+{% endif %}
+
+<form method="POST" action="{% if product %}/loan-products/{{ product.id }}/edit{% else %}/loan-products/new{% endif %}">
+
+  <!-- Basic Info -->
+  <div class="card">
+    <div class="card-header"><h2>Basic Information</h2></div>
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Product Code *</label>
+          <input name="product_code" value="{{ product.product_code if product else '' }}"
+                 {% if product %}readonly{% endif %} required
+                 placeholder="e.g. EMERGENCY_LOAN">
+          <span class="form-hint">Unique identifier. Cannot change after creation.</span>
+        </div>
+        <div class="form-group">
+          <label>Product Name *</label>
+          <input name="product_name" value="{{ product.product_name if product else '' }}" required
+                 placeholder="e.g. Emergency Loan">
+        </div>
+        <div class="form-group">
+          <label>Effective Date *</label>
+          <input name="effective_date" type="date"
+                 value="{{ product.effective_date if product else '' }}" required>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Interest -->
+  <div class="card">
+    <div class="card-header"><h2>Interest Configuration</h2></div>
+    <div class="card-body">
+      <div class="form-grid cols-3">
+        <div class="form-group">
+          <label>Interest Method *</label>
+          <select name="interest_method" required>
+            {% for m in interest_methods %}
+            <option value="{{ m }}" {% if product and product.interest_method.value == m %}selected{% endif %}>
+              {{ m.replace('_', ' ').title() }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Interest Rate (%) *</label>
+          <input name="interest_rate" type="number" step="0.0001"
+                 value="{{ product.interest_rate if product else '' }}" required placeholder="e.g. 20">
+        </div>
+        <div class="form-group">
+          <label>Interest Period *</label>
+          <select name="interest_period" required>
+            {% for p2 in interest_periods %}
+            <option value="{{ p2 }}" {% if product and product.interest_period.value == p2 %}selected{% endif %}>
+              {{ p2.title() }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Repayment Frequency *</label>
+          <select name="repayment_frequency" required>
+            {% for f in repayment_frequencies %}
+            <option value="{{ f }}" {% if product and product.repayment_frequency.value == f %}selected{% endif %}>
+              {{ f.title() }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Max Repayment Periods</label>
+          <input name="max_repayment_period" type="number" min="1"
+                 value="{{ product.max_repayment_period if product and product.max_repayment_period else '' }}"
+                 placeholder="Leave blank for open-ended">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Requirements -->
+  <div class="card">
+    <div class="card-header"><h2>Loan Requirements</h2></div>
+    <div class="card-body" style="display:flex; flex-direction:column; gap:12px">
+
+      <!-- Guarantor -->
+      <div class="form-section">
+        <div class="form-check">
+          <input type="checkbox" id="requires_guarantor" name="requires_guarantor"
+                 {% if product and product.requires_guarantor %}checked{% endif %}>
+          <label for="requires_guarantor">Requires Guarantor (one member must be selected at application)</label>
+        </div>
+      </div>
+
+      <!-- Savings multiple -->
+      <div class="form-section">
+        <div class="form-check">
+          <input type="checkbox" id="is_multiple_of_savings" name="is_multiple_of_savings"
+                 {% if product and product.is_multiple_of_savings %}checked{% endif %}>
+          <label for="is_multiple_of_savings">Loan Amount Must Be Multiple of Member's Savings</label>
+        </div>
+        <div class="conditional" id="savings-mult-block">
+          <div class="form-grid" style="margin-top:10px">
+            <div class="form-group">
+              <label>Savings Multiplier</label>
+              <input name="savings_multiplier" type="number" step="0.01"
+                     value="{{ product.savings_multiplier if product and product.savings_multiplier else '' }}"
+                     placeholder="e.g. 3.0 (loan ≤ 3× savings)">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Security -->
+      <div class="form-section">
+        <div class="form-check">
+          <input type="checkbox" id="requires_security" name="requires_security"
+                 {% if product and product.requires_security %}checked{% endif %}>
+          <label for="requires_security">Requires Security / Collateral</label>
+        </div>
+        <div class="conditional" id="security-block">
+          <div class="form-grid cols-3" style="margin-top:10px">
+            <div class="form-group">
+              <label>Security Type</label>
+              <select name="security_type">
+                <option value="">— select —</option>
+                {% for st in security_types %}
+                <option value="{{ st }}" {% if product and product.security_type and product.security_type.value == st %}selected{% endif %}>
+                  {{ st.replace('_', ' ').title() }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Value (% or KES)</label>
+              <input name="security_value" type="number" step="0.01"
+                     value="{{ product.security_value if product and product.security_value else '' }}"
+                     placeholder="e.g. 25 for 25%">
+            </div>
+            <div class="form-group">
+              <label>Notes (custom text)</label>
+              <input name="security_notes" value="{{ product.security_notes if product and product.security_notes else '' }}"
+                     placeholder="Describe custom security requirement">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Deposit -->
+      <div class="form-section">
+        <div class="form-check">
+          <input type="checkbox" id="requires_deposit" name="requires_deposit"
+                 {% if product and product.requires_deposit %}checked{% endif %}>
+          <label for="requires_deposit">Requires Upfront Deposit</label>
+        </div>
+        <div class="conditional" id="deposit-block">
+          <div class="form-grid" style="margin-top:10px">
+            <div class="form-group">
+              <label>Deposit Type</label>
+              <select name="deposit_type">
+                <option value="">— select —</option>
+                {% for dt in deposit_types %}
+                <option value="{{ dt }}" {% if product and product.deposit_type and product.deposit_type.value == dt %}selected{% endif %}>
+                  {{ dt.replace('_', ' ').title() }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Value (% or KES)</label>
+              <input name="deposit_value" type="number" step="0.01"
+                     value="{{ product.deposit_value if product and product.deposit_value else '' }}"
+                     placeholder="e.g. 10 for 10%">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Late penalty -->
+      <div class="form-section">
+        <div class="form-section-title">Late Payment Penalty</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Penalty Type</label>
+            <select name="late_payment_penalty_type">
+              <option value="">— None —</option>
+              {% for pt in penalty_types %}
+              <option value="{{ pt }}" {% if product and product.late_payment_penalty_type and product.late_payment_penalty_type.value == pt %}selected{% endif %}>
+                {{ pt.replace('_', ' ').title() }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Penalty Value</label>
+            <input name="late_payment_penalty_value" type="number" step="0.01"
+                   value="{{ product.late_payment_penalty_value if product and product.late_payment_penalty_value else '' }}"
+                   placeholder="Amount or %">
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Fees -->
+  <div class="card">
+    <div class="card-header">
+      <h2>Product Fees</h2>
+      <button type="button" class="btn btn-outline btn-sm" onclick="addFeeRow()"><i data-feather="plus" style="width: 14px; height: 14px;"></i> Add Fee</button>
+    </div>
+    <div class="card-body">
+      <div style="display:grid; grid-template-columns:1.5fr 1fr 1fr 1.5fr auto; gap:8px; margin-bottom:8px">
+        <span style="font-size:11px; color:var(--text-muted); font-weight:600; text-transform:uppercase">Fee Name</span>
+        <span style="font-size:11px; color:var(--text-muted); font-weight:600; text-transform:uppercase">Type</span>
+        <span style="font-size:11px; color:var(--text-muted); font-weight:600; text-transform:uppercase">Value</span>
+        <span style="font-size:11px; color:var(--text-muted); font-weight:600; text-transform:uppercase">Ledger Account</span>
+        <span></span>
+      </div>
+      <div id="fee-rows">
+        {% if product and product.fees %}
+          {% for fee in product.fees %}
+          <div class="fee-row">
+            <div class="form-group">
+              <input name="fee_name" value="{{ fee.fee_name }}" placeholder="Fee name" required>
+            </div>
+            <div class="form-group">
+              <select name="fee_type">
+                {% for ft in fee_types %}
+                <option value="{{ ft }}" {% if fee.fee_type.value == ft %}selected{% endif %}>
+                  {{ ft.replace('_', ' ').title() }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <input name="fee_value" type="number" step="0.0001" value="{{ fee.fee_value }}" placeholder="Value" required>
+            </div>
+            <div class="form-group">
+              <input name="ledger_account_name" value="{{ fee.ledger_account_name }}" placeholder="Ledger account" required>
+            </div>
+            <button type="button" class="btn btn-danger btn-xs" onclick="this.closest('.fee-row').remove()">Remove</button>
+          </div>
+          {% endfor %}
+        {% endif %}
+      </div>
+      <p class="form-hint mt-4">Each fee posts to its own ledger account at disbursement. Percentage fees are calculated against the principal.</p>
+    </div>
+  </div>
+
+  <div class="flex gap-2">
+    <button type="submit" class="btn btn-primary">
+      {% if product %}<i data-feather="save" style="width: 16px; height: 16px;"></i> Save New Version{% else %}<i data-feather="check-circle" style="width: 16px; height: 16px;"></i> Create Product{% endif %}
+    </button>
+    <a href="/loan-products" class="btn btn-outline">Cancel</a>
+  </div>
+
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  toggleConditional('is_multiple_of_savings', 'savings-mult-block');
+  toggleConditional('requires_security', 'security-block');
+  toggleConditional('requires_deposit', 'deposit-block');
+</script>
+{% endblock %}
