@@ -14,8 +14,7 @@ class MemberRead(BaseModel):
     savings_balance: Decimal
     created_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
 
 class LoanCreate(BaseModel):
@@ -47,8 +46,7 @@ class LoanRead(BaseModel):
     outstanding_balance: Decimal
     created_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
 
 class LoanUpdate(BaseModel):

@@ -52,7 +52,7 @@ def record_repayment(
 
 @router.put("/{loan_id}", response_model=LoanRead)
 def update_loan(loan_id: int, data: LoanUpdate, db: Session = Depends(get_db)):
-    loan = loan_crud.update_loan(db, loan_id, data.dict(exclude_unset=True))
+    loan = loan_crud.update_loan(db, loan_id, data.model_dump(exclude_unset=True))
     if not loan:
         raise HTTPException(status_code=404, detail="Loan not found.")
     return loan

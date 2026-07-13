@@ -17,8 +17,7 @@ class LedgerTransactionRead(BaseModel):
     reversal_of_transaction_id: Optional[int]
     created_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
 
 class ManualTransactionCreate(BaseModel):
@@ -38,5 +37,4 @@ class AuditLogRead(BaseModel):
     details: Optional[str]
     timestamp: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}

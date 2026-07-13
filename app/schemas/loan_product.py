@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import List, Optional
 
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
 
 from app.models.loan_product import (
     InterestMethod,
@@ -32,8 +32,7 @@ class LoanProductFeeRead(LoanProductFeeCreate):
     id: int
     loan_product_id: int
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
 
 # ---------------------------------------------------------------------------
@@ -104,5 +103,4 @@ class LoanProductRead(BaseModel):
 
     fees: List[LoanProductFeeRead] = []
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
