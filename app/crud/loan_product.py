@@ -35,7 +35,7 @@ def create_product(db: Session, data: LoanProductCreate) -> LoanProduct:
         )
 
     product = LoanProduct(
-        **data.model_dump(exclude={"fees"}),
+        **data.model_dump(exclude={"fees", "penalties"}),
         version_number=1,
         is_active=True,
     )
@@ -44,6 +44,10 @@ def create_product(db: Session, data: LoanProductCreate) -> LoanProduct:
 
     for fee_data in data.fees:
         db.add(LoanProductFee(loan_product_id=product.id, **fee_data.model_dump()))
+        
+    from app.models.penalty import LoanProductPenalty
+    for penalty_data in data.penalties:
+        db.add(LoanProductPenalty(loan_product_id=product.id, **penalty_data.model_dump()))
 
     log_action(db, "loan_product", product.id, "created", {
         "product_code": product.product_code,
@@ -70,7 +74,7 @@ def update_product(db: Session, product_code: str, data: LoanProductCreate) -> L
 
     new_version = old.version_number + 1
     product = LoanProduct(
-        **data.model_dump(exclude={"fees"}),
+        **data.model_dump(exclude={"fees", "penalties"}),
         product_code=product_code,  # always same code
         version_number=new_version,
         is_active=True,
@@ -80,6 +84,10 @@ def update_product(db: Session, product_code: str, data: LoanProductCreate) -> L
 
     for fee_data in data.fees:
         db.add(LoanProductFee(loan_product_id=product.id, **fee_data.model_dump()))
+        
+    from app.models.penalty import LoanProductPenalty
+    for penalty_data in data.penalties:
+        db.add(LoanProductPenalty(loan_product_id=product.id, **penalty_data.model_dump()))
 
     log_action(db, "loan_product", product.id, "updated", {
         "product_code": product_code,

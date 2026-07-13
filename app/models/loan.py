@@ -20,10 +20,16 @@ from app.database import Base
 
 
 class LoanStatus(str, enum.Enum):
-    pending = "pending"
+    pending_application = "pending_application"
+    appraised = "appraised"
+    approved = "approved"
     active = "active"
+    watchful = "watchful"
+    non_performing = "non_performing"
+    doubtful = "doubtful"
     closed = "closed"
     written_off = "written_off"
+    rejected = "rejected"
 
 
 class Loan(Base):
@@ -38,7 +44,6 @@ class Loan(Base):
     loan_product_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("loan_products.id"), nullable=False
     )
-    # FK to exactly one guarantor member; nullable if product doesn't require one.
     guarantor_member_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("members.id"), nullable=True
     )
@@ -51,10 +56,21 @@ class Loan(Base):
     application_date: Mapped[date] = mapped_column(Date, nullable=False)
     disbursement_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
+    # Number of repayment periods (e.g. 12 months)
+    num_periods: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     status: Mapped[LoanStatus] = mapped_column(
-        Enum(LoanStatus), nullable=False, default=LoanStatus.pending
+        Enum(LoanStatus), nullable=False, default=LoanStatus.pending_application
     )
     outstanding_balance: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False)
+
+    # Approval tracking
+    appraisal_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    approval_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Aging — days overdue tracked by scheduler
+    days_overdue: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -75,4 +91,12 @@ class Loan(Base):
     )
     ledger_transactions: Mapped[list["LedgerTransaction"]] = relationship(  # type: ignore[name-defined]
         "LedgerTransaction", back_populates="related_loan"
+    )
+    schedule_entries: Mapped[list["LoanScheduleEntry"]] = relationship(  # type: ignore[name-defined]
+        "LoanScheduleEntry", back_populates="loan",
+        order_by="LoanScheduleEntry.period_number",
+        cascade="all, delete-orphan"
+    )
+    reschedules: Mapped[list["LoanReschedule"]] = relationship(  # type: ignore[name-defined]
+        "LoanReschedule", back_populates="loan", cascade="all, delete-orphan"
     )

@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import List, Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 
 from app.models.loan_product import (
     InterestMethod,
@@ -12,7 +12,9 @@ from app.models.loan_product import (
     FeeType,
     DepositType,
     LatePaymentPenaltyType,
+    OffsetCoverType,
 )
+from app.models.penalty import PenaltyTrigger, PenaltyBasis
 
 
 # ---------------------------------------------------------------------------
@@ -31,7 +33,25 @@ class LoanProductFeeCreate(BaseModel):
 class LoanProductFeeRead(LoanProductFeeCreate):
     id: int
     loan_product_id: int
+    model_config = {"from_attributes": True}
 
+
+# ---------------------------------------------------------------------------
+# Loan Product Penalty Schemas
+# ---------------------------------------------------------------------------
+
+class LoanProductPenaltyCreate(BaseModel):
+    penalty_name: str
+    trigger: PenaltyTrigger
+    basis: PenaltyBasis
+    value: Decimal
+    is_active: bool = True
+    ledger_account_name: str
+
+
+class LoanProductPenaltyRead(LoanProductPenaltyCreate):
+    id: int
+    loan_product_id: int
     model_config = {"from_attributes": True}
 
 
@@ -50,7 +70,6 @@ class LoanProductCreate(BaseModel):
     max_repayment_period: Optional[int] = None
 
     requires_guarantor: bool = False
-
     is_multiple_of_savings: bool = False
     savings_multiplier: Optional[Decimal] = None
 
@@ -66,7 +85,28 @@ class LoanProductCreate(BaseModel):
     late_payment_penalty_type: Optional[LatePaymentPenaltyType] = None
     late_payment_penalty_value: Optional[Decimal] = None
 
+    # Approval config
+    requires_appraisal: bool = False
+    requires_board_approval: bool = False
+
+    # Aging config
+    watchful_after_days: Optional[int] = 30
+    non_performing_after_days: Optional[int] = 90
+    doubtful_after_days: Optional[int] = 180
+
+    # Rescheduling config
+    allows_rescheduling: bool = False
+    reschedule_fee_type: Optional[LatePaymentPenaltyType] = None
+    reschedule_fee_value: Optional[Decimal] = None
+
+    # Offset config
+    allows_offset: bool = False
+    offset_covers: Optional[OffsetCoverType] = None
+    offset_fee_type: Optional[LatePaymentPenaltyType] = None
+    offset_fee_value: Optional[Decimal] = None
+
     fees: List[LoanProductFeeCreate] = []
+    penalties: List[LoanProductPenaltyCreate] = []
 
 
 class LoanProductRead(BaseModel):
@@ -98,9 +138,26 @@ class LoanProductRead(BaseModel):
     late_payment_penalty_type: Optional[LatePaymentPenaltyType]
     late_payment_penalty_value: Optional[Decimal]
 
+    requires_appraisal: bool
+    requires_board_approval: bool
+
+    watchful_after_days: Optional[int]
+    non_performing_after_days: Optional[int]
+    doubtful_after_days: Optional[int]
+
+    allows_rescheduling: bool
+    reschedule_fee_type: Optional[LatePaymentPenaltyType]
+    reschedule_fee_value: Optional[Decimal]
+
+    allows_offset: bool
+    offset_covers: Optional[OffsetCoverType]
+    offset_fee_type: Optional[LatePaymentPenaltyType]
+    offset_fee_value: Optional[Decimal]
+
     created_at: datetime
     updated_at: datetime
 
     fees: List[LoanProductFeeRead] = []
+    penalties: List[LoanProductPenaltyRead] = []
 
     model_config = {"from_attributes": True}

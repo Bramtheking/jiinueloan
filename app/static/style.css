@@ -37,6 +37,12 @@ body {
   display: flex;
   font-size: 14px;
   line-height: 1.6;
+  animation: fadeIn 0.15s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* ============================================================
@@ -462,16 +468,71 @@ tbody td {
   body {
     flex-direction: column;
   }
+  
+  /* Sidebar becomes a horizontal scrolling nav on mobile */
   .sidebar {
     width: 100%;
     position: relative;
     min-height: auto;
     border-right: none;
     border-bottom: 1px solid var(--border);
+    flex-direction: row;
+    overflow-x: auto;
+    white-space: nowrap;
+    padding: 8px 10px;
+    gap: 5px;
+    z-index: 100;
   }
+  .sidebar::-webkit-scrollbar { display: none; } /* hide scrollbar for horizontal nav */
+  .sidebar-logo {
+    display: flex;
+    align-items: center;
+    border-bottom: none;
+    padding: 10px 14px;
+    margin-right: auto;
+  }
+  .sidebar-logo .sub { display: none; }
+  .nav-section { display: none; }
+  .sidebar-footer { display: none; }
+  
+  .nav-item {
+    padding: 8px 12px;
+    margin: 0;
+    font-size: 13px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+  }
+  .nav-item.active {
+    background: var(--primary-light);
+  }
+
   .main {
     margin-left: 0;
   }
+  
+  .topbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px 20px;
+  }
+  .topbar > div:first-child { width: 100%; }
+  .topbar .flex.gap-2 { 
+    width: 100%; 
+    flex-wrap: wrap; 
+  }
+  
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .card-header .flex { flex-wrap: wrap; }
+  
+  .content {
+    padding: 16px;
+  }
+  
   .form-grid.cols-3,
   .form-grid.cols-2,
   .form-grid {
@@ -481,23 +542,18 @@ tbody td {
   div[style*="grid-template-columns:1fr 380px"] {
     grid-template-columns: 1fr !important;
   }
-  .topbar {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 14px 20px;
-  }
-  .content {
-    padding: 16px;
-  }
-  .sidebar-logo {
-    padding: 16px;
-  }
-  .nav-item {
-    padding: 12px 16px;
-    font-size: 14px;
-  }
+  
   #fee-rows .fee-row {
     grid-template-columns: 1fr 1fr;
+    gap: 10px;
   }
+  
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .btn { width: 100%; justify-content: center; margin-bottom: 5px; }
+  .btn-sm, .btn-xs { width: auto; justify-content: flex-start; margin-bottom: 0; }
+  
+  table td, table th { padding: 10px; }
 }

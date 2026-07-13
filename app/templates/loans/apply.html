@@ -19,7 +19,7 @@
           <select name="member_id" required id="member-select">
             <option value="">— Select member —</option>
             {% for m in members %}
-            <option value="{{ m.id }}">{{ m.name }} (Savings: KES {{ "{:,.0f}".format(m.savings_balance) }})</option>
+            <option value="{{ m.id }}">{{ m.name }} (Savings: KES {{ "{:,.0f}".format(m.savings_balance) }} | Score: {{ m.credit_score.score if m.credit_score else 'N/A' }})</option>
             {% endfor %}
           </select>
         </div>

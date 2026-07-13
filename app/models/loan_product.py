@@ -70,6 +70,12 @@ class LatePaymentPenaltyType(str, enum.Enum):
     fixed_amount = "fixed_amount"
 
 
+class OffsetCoverType(str, enum.Enum):
+    savings = "savings"
+    security = "security"
+    both = "both"
+
+
 class LoanProduct(Base):
     __tablename__ = "loan_products"
 
@@ -115,13 +121,47 @@ class LoanProduct(Base):
     deposit_type: Mapped[DepositType | None] = mapped_column(Enum(DepositType), nullable=True)
     deposit_value: Mapped[Decimal | None] = mapped_column(Numeric(15, 2), nullable=True)
 
-    # Late payment penalty
+    # Late payment penalty (legacy single-penalty; new multi-penalty via LoanProductPenalty)
     late_payment_penalty_type: Mapped[LatePaymentPenaltyType | None] = mapped_column(
         Enum(LatePaymentPenaltyType), nullable=True
     )
     late_payment_penalty_value: Mapped[Decimal | None] = mapped_column(
         Numeric(15, 2), nullable=True
     )
+
+    # -----------------------------------------------------------------------
+    # Approval workflow
+    # -----------------------------------------------------------------------
+    requires_appraisal: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    requires_board_approval: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    # -----------------------------------------------------------------------
+    # Aging / status thresholds (days overdue)
+    # -----------------------------------------------------------------------
+    watchful_after_days: Mapped[int | None] = mapped_column(Integer, nullable=True, default=30)
+    non_performing_after_days: Mapped[int | None] = mapped_column(Integer, nullable=True, default=90)
+    doubtful_after_days: Mapped[int | None] = mapped_column(Integer, nullable=True, default=180)
+
+    # -----------------------------------------------------------------------
+    # Rescheduling
+    # -----------------------------------------------------------------------
+    allows_rescheduling: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    reschedule_fee_type: Mapped[LatePaymentPenaltyType | None] = mapped_column(
+        Enum(LatePaymentPenaltyType), nullable=True
+    )
+    reschedule_fee_value: Mapped[Decimal | None] = mapped_column(Numeric(15, 2), nullable=True)
+
+    # -----------------------------------------------------------------------
+    # Offset
+    # -----------------------------------------------------------------------
+    allows_offset: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    offset_covers: Mapped[OffsetCoverType | None] = mapped_column(
+        Enum(OffsetCoverType), nullable=True
+    )
+    offset_fee_type: Mapped[LatePaymentPenaltyType | None] = mapped_column(
+        Enum(LatePaymentPenaltyType), nullable=True
+    )
+    offset_fee_value: Mapped[Decimal | None] = mapped_column(Numeric(15, 2), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -133,6 +173,9 @@ class LoanProduct(Base):
     # Relationships
     fees: Mapped[list["LoanProductFee"]] = relationship(
         "LoanProductFee", back_populates="product", cascade="all, delete-orphan"
+    )
+    penalties: Mapped[list["LoanProductPenalty"]] = relationship(  # type: ignore[name-defined]
+        "LoanProductPenalty", back_populates="product", cascade="all, delete-orphan"
     )
     loans: Mapped[list["Loan"]] = relationship("Loan", back_populates="loan_product")  # type: ignore[name-defined]
 

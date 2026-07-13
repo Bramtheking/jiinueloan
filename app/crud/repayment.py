@@ -138,6 +138,11 @@ def create_repayment(db: Session, loan_id: int, data: RepaymentCreate) -> Repaym
         "is_overpaid": allocation.is_overpaid,
     })
 
+    # --- 9. Update Member Credit Score ---
+    from app.crud.scoring import update_member_credit_score
+    if loan.member_id:
+        update_member_credit_score(db, loan.member_id)
+
     db.commit()
     db.refresh(repayment)
     return repayment

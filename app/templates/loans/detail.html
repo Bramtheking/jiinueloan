@@ -8,6 +8,29 @@
     <span class="badge badge-{{ loan.status.value }}" style="font-size:13px; padding:6px 14px">
       {{ loan.status.value.replace('_', ' ').title() }}
     </span>
+    {% if loan.status.value == 'pending_application' or loan.status.value == 'appraised' %}
+    <form method="POST" action="/loans/{{ loan.id }}/approve" style="display:inline">
+      <button type="submit" class="btn btn-success btn-sm"><i data-feather="check" style="width:14px;height:14px"></i> Approve</button>
+    </form>
+    <form method="POST" action="/loans/{{ loan.id }}/reject" style="display:inline">
+      <button type="submit" class="btn btn-danger btn-sm"><i data-feather="x" style="width:14px;height:14px"></i> Reject</button>
+    </form>
+    {% endif %}
+    {% if loan.status.value == 'approved' %}
+    <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('disburse-modal').style.display='block'">
+      <i data-feather="play" style="width:14px;height:14px"></i> Disburse
+    </button>
+    {% endif %}
+    {% if loan.status.value in ['active', 'watchful', 'non_performing'] and loan.loan_product and loan.loan_product.allows_rescheduling %}
+    <button type="button" class="btn btn-warning btn-sm" onclick="document.getElementById('reschedule-modal').style.display='block'">
+      <i data-feather="refresh-cw" style="width:14px;height:14px"></i> Reschedule
+    </button>
+    {% endif %}
+    {% if loan.status.value in ['active', 'watchful', 'non_performing', 'doubtful'] and loan.loan_product and loan.loan_product.allows_offset %}
+    <button type="button" class="btn btn-info btn-sm" onclick="document.getElementById('offset-modal').style.display='block'">
+      <i data-feather="dollar-sign" style="width:14px;height:14px"></i> Early Offset
+    </button>
+    {% endif %}
     <a href="/loans/{{ loan.id }}/edit" class="btn btn-outline btn-sm"><i data-feather="edit-2" style="width:14px;height:14px"></i> Edit</a>
     <form method="POST" action="/loans/{{ loan.id }}/delete" style="display:inline" onsubmit="return confirm('Delete loan {{ loan.loan_number }}? This will remove all repayments and ledger entries.');">
       <button type="submit" class="btn btn-danger btn-sm"><i data-feather="trash-2" style="width:14px;height:14px"></i> Delete</button>
@@ -78,9 +101,56 @@
 
 <div style="display:grid; grid-template-columns:1fr 380px; gap:20px; align-items:start">
 
-  <!-- Repayment History -->
-  <div class="card">
-    <div class="card-header">
+  <!-- Left Column Wrapper -->
+  <div style="display:flex; flex-direction:column; gap:20px">
+    
+    <!-- Repayment Schedule -->
+    <div class="card" style="margin-top:0">
+      <div class="card-header">
+        <h2>Expected Repayment Schedule</h2>
+        <span class="text-muted" style="font-size:12px">Generated at disbursement</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Due Date</th>
+              <th class="text-right">Opening</th>
+              <th class="text-right">Principal</th>
+              <th class="text-right">Interest</th>
+              <th class="text-right">Expected Installment</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in schedule_entries %}
+            <tr {% if s.is_cancelled %}style="opacity:0.5; text-decoration:line-through"{% endif %}>
+              <td class="text-muted">{{ s.period_number }}</td>
+              <td>{{ s.due_date }}</td>
+              <td class="text-right text-muted">{{ "{:,.2f}".format(s.opening_balance) }}</td>
+              <td class="text-right text-muted">{{ "{:,.2f}".format(s.expected_principal) }}</td>
+              <td class="text-right text-muted">{{ "{:,.2f}".format(s.expected_interest) }}</td>
+              <td class="text-right amount-in" style="font-weight:600">{{ "{:,.2f}".format(s.expected_amount) }}</td>
+              <td>
+                {% if s.is_cancelled %}<span class="badge badge-secondary">Cancelled</span>
+                {% elif s.is_paid %}<span class="badge badge-success">Paid</span>
+                {% elif s.is_missed %}<span class="badge badge-danger">Missed</span>
+                {% else %}<span class="badge badge-warning">Pending</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr class="table-empty"><td colspan="7">Schedule will be generated upon disbursement.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Repayment History -->
+    <div class="card" style="margin-top:0">
+      <div class="card-header">
       <h2>Repayment History</h2>
       <span class="text-muted" style="font-size:12px">{{ repayments | length }} payment(s)</span>
     </div>
@@ -121,6 +191,7 @@
         </tbody>
       </table>
     </div>
+  </div>
   </div>
 
   <!-- Record Repayment -->
@@ -191,4 +262,113 @@
   </div>
 
 </div>
+
+<!-- Disburse Modal -->
+<div id="disburse-modal" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+  <div class="card" style="width:400px; max-width:90%; margin: 100px auto; background:white;">
+    <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+      <h2>Disburse Loan</h2>
+      <button type="button" class="btn btn-xs btn-outline" onclick="document.getElementById('disburse-modal').style.display='none'"><i data-feather="x"></i></button>
+    </div>
+    <div class="card-body">
+      <form method="POST" action="/loans/{{ loan.id }}/disburse">
+        <div class="form-group" style="margin-bottom:15px;">
+          <label>Disbursement Date *</label>
+          <input name="disbursement_date" type="date" value="{{ today }}" required style="width:100%;">
+        </div>
+        <div class="alert alert-info" style="font-size:12px; margin-bottom:15px;">
+          Disbursing will create the repayment schedule and post all upfront fees/deposits to the ledger.
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;">Confirm Disbursement</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Reschedule Modal -->
+<div id="reschedule-modal" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+  <div class="card" style="width:400px; max-width:90%; margin: 100px auto; background:white;">
+    <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+      <h2>Reschedule Loan</h2>
+      <button type="button" class="btn btn-xs btn-outline" onclick="document.getElementById('reschedule-modal').style.display='none'"><i data-feather="x"></i></button>
+    </div>
+    <div class="card-body">
+      <form method="POST" action="/loans/{{ loan.id }}/reschedule">
+        <div class="form-group" style="margin-bottom:15px;">
+          <label>Reschedule Date *</label>
+          <input name="reschedule_date" type="date" value="{{ today }}" required style="width:100%;">
+        </div>
+        <div class="form-group" style="margin-bottom:15px;">
+          <label>New Number of Periods *</label>
+          <input name="new_num_periods" type="number" min="1" value="{{ loan.num_periods }}" required style="width:100%;">
+          <span class="form-hint">Current remaining balance will be spread across these new periods.</span>
+        </div>
+        <div class="form-group" style="margin-bottom:15px;">
+          <label>Reason</label>
+          <textarea name="reason" rows="2" style="width:100%;"></textarea>
+        </div>
+        {% if loan.loan_product and loan.loan_product.reschedule_fee_value %}
+        <div class="alert alert-warning" style="font-size:12px; margin-bottom:15px;">
+          <strong>Fee Notice:</strong> A rescheduling fee of {{ loan.loan_product.reschedule_fee_value }} 
+          {% if loan.loan_product.reschedule_fee_type.value == 'percentage' %}% of outstanding balance{% else %}KES{% endif %} 
+          will be charged and added to the loan balance.
+        </div>
+        {% endif %}
+        <div class="alert alert-info" style="font-size:12px; margin-bottom:15px;">
+          All unpaid existing schedule entries will be cancelled and replaced by a newly generated schedule starting today.
+        </div>
+        <button type="submit" class="btn btn-warning" style="width:100%;">Confirm Reschedule</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Offset Modal -->
+<div id="offset-modal" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+  <div class="card" style="width:400px; max-width:90%; margin: 100px auto; background:white;">
+    <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+      <h2>Early Offset</h2>
+      <button type="button" class="btn btn-xs btn-outline" onclick="document.getElementById('offset-modal').style.display='none'"><i data-feather="x"></i></button>
+    </div>
+    <div class="card-body">
+      <form method="POST" action="/loans/{{ loan.id }}/offset">
+        <div class="form-group" style="margin-bottom:15px;">
+          <label>Offset Date *</label>
+          <input name="offset_date" type="date" value="{{ today }}" required style="width:100%;">
+        </div>
+        
+        <div class="info-grid" style="margin-bottom:15px; border:1px solid var(--border); padding:10px; border-radius:6px; background:var(--bg-secondary);">
+            <div class="info-item" style="margin-bottom:8px;"><label>Outstanding Balance</label>
+                <div class="val amount-out">KES {{ "{:,.2f}".format(loan.outstanding_balance) }}</div>
+            </div>
+            {% if loan.loan_product and loan.loan_product.offset_fee_value %}
+            <div class="info-item" style="margin-bottom:8px;"><label>Offset Fee</label>
+                <div class="val">
+                    {{ loan.loan_product.offset_fee_value }} {% if loan.loan_product.offset_fee_type.value == 'percentage' %}% of balance{% else %}KES{% endif %}
+                </div>
+            </div>
+            {% endif %}
+            <div class="info-item"><label>Source</label>
+                <div class="val" style="text-transform: capitalize;">{{ loan.loan_product.offset_covers.value if loan.loan_product and loan.loan_product.offset_covers else 'Savings' }}</div>
+            </div>
+        </div>
+
+        <div class="alert alert-info" style="font-size:12px; margin-bottom:15px;">
+          This will deduct the total amount from the selected source and clear the loan completely.
+        </div>
+        <button type="submit" class="btn btn-info" style="width:100%;">Confirm Offset</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Simple check for modal flex centering (if display was block, override it)
+  if(document.getElementById('disburse-modal')) document.getElementById('disburse-modal').style.display = 'none';
+  if(document.getElementById('reschedule-modal')) document.getElementById('reschedule-modal').style.display = 'none';
+  if(document.getElementById('offset-modal')) document.getElementById('offset-modal').style.display = 'none';
+  const originalShow = function(id) {
+    document.getElementById(id).style.display = 'flex';
+  }
+</script>
 {% endblock %}

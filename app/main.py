@@ -37,13 +37,24 @@ from app.schemas.repayment import RepaymentCreate
 from app.schemas.ledger import ManualTransactionCreate
 from app.models.loan_product import (
     InterestMethod, InterestPeriod, RepaymentFrequency,
-    SecurityType, FeeType, DepositType, LatePaymentPenaltyType
+    SecurityType, FeeType, DepositType, LatePaymentPenaltyType, OffsetCoverType
 )
+from app.models.penalty import PenaltyTrigger, PenaltyBasis
+
+from contextlib import asynccontextmanager
+from app.services.scheduler import start_scheduler, shutdown_scheduler
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    start_scheduler()
+    yield
+    shutdown_scheduler()
 
 app = FastAPI(
     title="Jiinue Loan Engine",
     description="SACCO loan management module — loan products, loans, repayments, ledger",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # --- Static files ---
@@ -120,6 +131,9 @@ def ui_new_product_form(request: Request):
         "deposit_types": [e.value for e in DepositType],
         "penalty_types": [e.value for e in LatePaymentPenaltyType],
         "fee_types": [e.value for e in FeeType],
+        "penalty_triggers": [e.value for e in PenaltyTrigger],
+        "penalty_basis": [e.value for e in PenaltyBasis],
+        "offset_covers": [e.value for e in OffsetCoverType],
         "error": None,
     })
 
@@ -139,6 +153,9 @@ def ui_edit_product_form(product_id: int, request: Request, db: Session = Depend
         "deposit_types": [e.value for e in DepositType],
         "penalty_types": [e.value for e in LatePaymentPenaltyType],
         "fee_types": [e.value for e in FeeType],
+        "penalty_triggers": [e.value for e in PenaltyTrigger],
+        "penalty_basis": [e.value for e in PenaltyBasis],
+        "offset_covers": [e.value for e in OffsetCoverType],
         "error": None,
     })
 
@@ -168,8 +185,21 @@ async def ui_create_product(request: Request, db: Session = Depends(get_db)):
             deposit_type=form.get("deposit_type") or None,
             deposit_value=form.get("deposit_value") or None,
             late_payment_penalty_type=form.get("late_payment_penalty_type") or None,
-            late_payment_penalty_value=form.get("late_payment_penalty_value") or None,
+            late_payment_penalty_value=Decimal(form["late_payment_penalty_value"]) if form.get("late_payment_penalty_value") else None,
+            requires_appraisal="requires_appraisal" in form,
+            requires_board_approval="requires_board_approval" in form,
+            watchful_after_days=int(form.get("watchful_after_days")) if form.get("watchful_after_days") else None,
+            non_performing_after_days=int(form.get("non_performing_after_days")) if form.get("non_performing_after_days") else None,
+            doubtful_after_days=int(form.get("doubtful_after_days")) if form.get("doubtful_after_days") else None,
+            allows_rescheduling="allows_rescheduling" in form,
+            reschedule_fee_type=form.get("reschedule_fee_type") or None,
+            reschedule_fee_value=Decimal(form["reschedule_fee_value"]) if form.get("reschedule_fee_value") else None,
+            allows_offset="allows_offset" in form,
+            offset_covers=form.get("offset_covers") or None,
+            offset_fee_type=form.get("offset_fee_type") or None,
+            offset_fee_value=Decimal(form["offset_fee_value"]) if form.get("offset_fee_value") else None,
             fees=fees,
+            penalties=_parse_penalties_from_form(form),
         )
         lp_crud.create_product(db, data)
         return RedirectResponse("/loan-products", status_code=303)
@@ -214,8 +244,21 @@ async def ui_update_product(product_id: int, request: Request, db: Session = Dep
             deposit_type=form.get("deposit_type") or None,
             deposit_value=form.get("deposit_value") or None,
             late_payment_penalty_type=form.get("late_payment_penalty_type") or None,
-            late_payment_penalty_value=form.get("late_payment_penalty_value") or None,
+            late_payment_penalty_value=Decimal(form["late_payment_penalty_value"]) if form.get("late_payment_penalty_value") else None,
+            requires_appraisal="requires_appraisal" in form,
+            requires_board_approval="requires_board_approval" in form,
+            watchful_after_days=int(form.get("watchful_after_days")) if form.get("watchful_after_days") else None,
+            non_performing_after_days=int(form.get("non_performing_after_days")) if form.get("non_performing_after_days") else None,
+            doubtful_after_days=int(form.get("doubtful_after_days")) if form.get("doubtful_after_days") else None,
+            allows_rescheduling="allows_rescheduling" in form,
+            reschedule_fee_type=form.get("reschedule_fee_type") or None,
+            reschedule_fee_value=Decimal(form["reschedule_fee_value"]) if form.get("reschedule_fee_value") else None,
+            allows_offset="allows_offset" in form,
+            offset_covers=form.get("offset_covers") or None,
+            offset_fee_type=form.get("offset_fee_type") or None,
+            offset_fee_value=Decimal(form["offset_fee_value"]) if form.get("offset_fee_value") else None,
             fees=fees,
+            penalties=_parse_penalties_from_form(form),
         )
         lp_crud.update_product(db, product.product_code, data)
         return RedirectResponse("/loan-products", status_code=303)
@@ -349,14 +392,71 @@ def ui_loan_detail(loan_id: int, request: Request, db: Session = Depends(get_db)
         raise HTTPException(status_code=404, detail="Loan not found")
     repayments = repayment_crud.list_repayments(db, loan_id)
     ledger_entries = ledger_crud.list_transactions(db, loan_id=loan_id)
+    from app.crud.loan_schedule import get_schedule
+    schedule_entries = get_schedule(db, loan_id)
     return templates.TemplateResponse("loans/detail.html", {
         "request": request,
         "loan": loan,
         "repayments": repayments,
         "ledger_entries": ledger_entries,
+        "schedule_entries": schedule_entries,
         "today": date.today().isoformat(),
         "error": None,
     })
+
+
+@app.post("/loans/{loan_id}/approve")
+def ui_approve_loan(loan_id: int, request: Request, db: Session = Depends(get_db)):
+    try:
+        loan_crud.approve_loan(db, loan_id)
+        return RedirectResponse(f"/loans/{loan_id}", status_code=303)
+    except Exception as e:
+        return RedirectResponse(f"/loans/{loan_id}?error={str(e)}", status_code=303)
+
+
+@app.post("/loans/{loan_id}/reject")
+def ui_reject_loan(loan_id: int, request: Request, db: Session = Depends(get_db)):
+    try:
+        loan_crud.reject_loan(db, loan_id, reason="Rejected via UI")
+        return RedirectResponse(f"/loans/{loan_id}", status_code=303)
+    except Exception as e:
+        return RedirectResponse(f"/loans/{loan_id}?error={str(e)}", status_code=303)
+
+
+@app.post("/loans/{loan_id}/disburse")
+async def ui_disburse_loan(loan_id: int, request: Request, db: Session = Depends(get_db)):
+    form = await request.form()
+    try:
+        loan_crud.disburse_loan(db, loan_id, disburse_date=form["disbursement_date"])
+        return RedirectResponse(f"/loans/{loan_id}", status_code=303)
+    except Exception as e:
+        return RedirectResponse(f"/loans/{loan_id}?error={str(e)}", status_code=303)
+
+
+@app.post("/loans/{loan_id}/reschedule")
+async def ui_reschedule_loan(loan_id: int, request: Request, db: Session = Depends(get_db)):
+    form = await request.form()
+    try:
+        from app.crud.reschedule import reschedule_loan
+        from datetime import datetime
+        reschedule_date = datetime.strptime(form["reschedule_date"], "%Y-%m-%d").date()
+        reschedule_loan(db, loan_id, int(form["new_num_periods"]), form["reason"], reschedule_date)
+        return RedirectResponse(f"/loans/{loan_id}", status_code=303)
+    except Exception as e:
+        return RedirectResponse(f"/loans/{loan_id}?error={str(e)}", status_code=303)
+
+
+@app.post("/loans/{loan_id}/offset")
+async def ui_offset_loan(loan_id: int, request: Request, db: Session = Depends(get_db)):
+    form = await request.form()
+    try:
+        from app.crud.offset import offset_loan
+        from datetime import datetime
+        offset_date = datetime.strptime(form["offset_date"], "%Y-%m-%d").date()
+        offset_loan(db, loan_id, offset_date)
+        return RedirectResponse(f"/loans/{loan_id}", status_code=303)
+    except Exception as e:
+        return RedirectResponse(f"/loans/{loan_id}?error={str(e)}", status_code=303)
 
 
 @app.post("/loans/{loan_id}/repayments")
@@ -365,6 +465,8 @@ async def ui_record_repayment(loan_id: int, request: Request, db: Session = Depe
     loan = loan_crud.get_loan(db, loan_id)
     repayments = repayment_crud.list_repayments(db, loan_id)
     ledger_entries = ledger_crud.list_transactions(db, loan_id=loan_id)
+    from app.crud.loan_schedule import get_schedule
+    schedule_entries = get_schedule(db, loan_id)
     try:
         data = RepaymentCreate(
             payment_date=form["payment_date"],
@@ -379,9 +481,46 @@ async def ui_record_repayment(loan_id: int, request: Request, db: Session = Depe
             "loan": loan,
             "repayments": repayments,
             "ledger_entries": ledger_entries,
+            "schedule_entries": schedule_entries,
             "today": date.today().isoformat(),
             "error": str(e),
         })
+
+
+@app.post("/tasks/aging/run")
+def trigger_aging_job(db: Session = Depends(get_db)):
+    """
+    Manually trigger the nightly aging job. Useful for testing or FastCron.
+    """
+    from app.services.aging import run_aging_job
+    try:
+        run_aging_job(db=db)
+        return {"status": "success", "message": "Aging job completed."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/loans/{loan_id}/approve")
+def ui_approve_loan(loan_id: int, request: Request, db: Session = Depends(get_db)):
+    notes = request.query_params.get("notes")
+    loan_crud.approve_loan(db, loan_id, notes)
+    return RedirectResponse(f"/loans/{loan_id}", status_code=303)
+
+
+@app.post("/loans/{loan_id}/reject")
+async def ui_reject_loan(loan_id: int, request: Request, db: Session = Depends(get_db)):
+    form = await request.form()
+    reason = form.get("reason", "Rejected")
+    loan_crud.reject_loan(db, loan_id, reason)
+    return RedirectResponse(f"/loans/{loan_id}", status_code=303)
+
+
+@app.post("/loans/{loan_id}/disburse")
+async def ui_disburse_loan(loan_id: int, request: Request, db: Session = Depends(get_db)):
+    form = await request.form()
+    disburse_date = datetime.strptime(form["disbursement_date"], "%Y-%m-%d").date()
+    loan_crud.disburse_loan(db, loan_id, disburse_date)
+    return RedirectResponse(f"/loans/{loan_id}", status_code=303)
 
 
 # ---------------------------------------------------------------------------
@@ -535,3 +674,27 @@ def _parse_fees_from_form(form) -> list:
             ledger_account_name=ledger_accounts[i] if i < len(ledger_accounts) else name.strip() + " Account",
         ))
     return fees
+
+from app.schemas.loan_product import LoanProductPenaltyCreate
+
+def _parse_penalties_from_form(form) -> list:
+    """Extract penalty rows from a multi-row form."""
+    penalty_names = form.getlist("penalty_name")
+    penalty_triggers = form.getlist("penalty_trigger")
+    penalty_basis = form.getlist("penalty_basis")
+    penalty_values = form.getlist("penalty_value")
+    ledger_accounts = form.getlist("penalty_ledger_account_name")
+
+    penalties = []
+    for i, name in enumerate(penalty_names):
+        if not name.strip():
+            continue
+        penalties.append(LoanProductPenaltyCreate(
+            penalty_name=name.strip(),
+            trigger=penalty_triggers[i] if i < len(penalty_triggers) else "late_payment",
+            basis=penalty_basis[i] if i < len(penalty_basis) else "fixed_amount",
+            value=Decimal(penalty_values[i]) if i < len(penalty_values) and penalty_values[i] else Decimal("0"),
+            is_active=True,
+            ledger_account_name=ledger_accounts[i] if i < len(ledger_accounts) else name.strip() + " Penalty Account",
+        ))
+    return penalties
