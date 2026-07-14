@@ -24,6 +24,7 @@ class LoanCreate(BaseModel):
     principal_amount: Decimal
     application_date: date
     disbursement_date: Optional[date] = None
+    num_periods: Optional[int] = None          # If blank, defaults to product's max_repayment_period
 
     security_provided_value: Optional[Decimal] = None
     security_provided_notes: Optional[str] = None

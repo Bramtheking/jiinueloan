@@ -27,7 +27,7 @@
   <div class="stat-card">
     <div class="stat-label">Members</div>
     <div class="stat-value">{{ total_members }}</div>
-    <div class="stat-sub">seeded records</div>
+
   </div>
 </div>
 
@@ -37,11 +37,15 @@
       <h2>Quick Actions</h2>
     </div>
     <div class="card-body" style="display:flex; flex-direction:column; gap:10px">
-      <a href="/loans/apply" class="btn btn-primary"><i data-feather="plus-circle" class="icon" style="width: 16px; height: 16px;"></i> Apply New Loan</a>
-      <a href="/loan-products/new" class="btn btn-outline"><i data-feather="settings" class="icon" style="width: 16px; height: 16px;"></i> Create Loan Product</a>
-      <a href="/ledger/manual" class="btn btn-outline"><i data-feather="book" class="icon" style="width: 16px; height: 16px;"></i> Manual Ledger Entry</a>
-      <a href="/members" class="btn btn-outline"><i data-feather="users" class="icon" style="width: 16px; height: 16px;"></i> View Members</a>
-      <a href="/members/new" class="btn btn-outline"><i data-feather="user-plus" class="icon" style="width: 16px; height: 16px;"></i> Add Member</a>
+      <a href="/loans/apply" class="btn btn-primary"><i data-feather="plus-circle" class="icon"
+          style="width: 16px; height: 16px;"></i> Apply New Loan</a>
+      <a href="/loan-products/new" class="btn btn-outline"><i data-feather="settings" class="icon"
+          style="width: 16px; height: 16px;"></i> Create Loan Product</a>
+
+      <a href="/members" class="btn btn-outline"><i data-feather="users" class="icon"
+          style="width: 16px; height: 16px;"></i> View Members</a>
+      <a href="/members/new" class="btn btn-outline"><i data-feather="user-plus" class="icon"
+          style="width: 16px; height: 16px;"></i> Add Member</a>
     </div>
   </div>
   <div class="card">
@@ -50,10 +54,18 @@
     </div>
     <div class="card-body">
       <div class="info-grid">
-        <div class="info-item"><label>Version</label><div class="val">Jiinue v1.0</div></div>
-        <div class="info-item"><label>Framework</label><div class="val">FastAPI + SQLAlchemy</div></div>
-        <div class="info-item"><label>Database</label><div class="val">PostgreSQL</div></div>
-        <div class="info-item"><label>Auth</label><div class="val text-muted">None (admin only)</div></div>
+        <div class="info-item"><label>Version</label>
+          <div class="val">Jiinue v1.0</div>
+        </div>
+        <div class="info-item"><label>Framework</label>
+          <div class="val">FastAPI + SQLAlchemy</div>
+        </div>
+        <div class="info-item"><label>Database</label>
+          <div class="val">PostgreSQL</div>
+        </div>
+        <div class="info-item"><label>Auth</label>
+          <div class="val text-muted">None (admin only)</div>
+        </div>
       </div>
     </div>
   </div>

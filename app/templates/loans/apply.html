@@ -50,6 +50,11 @@
           <input name="principal_amount" type="number" step="0.01" required placeholder="e.g. 100000">
         </div>
         <div class="form-group">
+          <label>Number of Repayment Periods</label>
+          <input name="num_periods" type="number" min="1" placeholder="Leave blank to use product default">
+          <span class="form-hint">If blank, the product's configured maximum period is used.</span>
+        </div>
+        <div class="form-group">
           <label>Application Date *</label>
           <input name="application_date" type="date" value="{{ today }}" required>
         </div>

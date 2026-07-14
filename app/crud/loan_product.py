@@ -101,3 +101,26 @@ def update_product(db: Session, product_code: str, data: LoanProductCreate) -> L
     db.commit()
     db.refresh(product)
     return product
+
+
+def delete_product(db: Session, product_id: int) -> bool:
+    product = get_product_by_id(db, product_id)
+    if not product:
+        return False
+        
+    from app.models.loan import Loan
+    if db.query(Loan).filter(Loan.loan_product_id == product_id).first():
+        raise ValueError("Cannot delete this product because it has associated loans. Deactivate it by creating a new version.")
+        
+    from app.models.loan_product import LoanProductFee
+    from app.models.penalty import LoanProductPenalty
+    
+    db.query(LoanProductFee).filter(LoanProductFee.loan_product_id == product_id).delete()
+    db.query(LoanProductPenalty).filter(LoanProductPenalty.loan_product_id == product_id).delete()
+    
+    db.delete(product)
+    
+    log_action(db, "loan_product", product_id, "deleted", {"product_code": product.product_code})
+    
+    db.commit()
+    return True

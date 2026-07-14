@@ -277,6 +277,15 @@ async def ui_update_product(product_id: int, request: Request, db: Session = Dep
         })
 
 
+@app.post("/loan-products/{product_id}/delete")
+async def ui_loan_product_delete(product_id: int, request: Request, db: Session = Depends(get_db)):
+    try:
+        lp_crud.delete_product(db, product_id)
+    except Exception as e:
+        print(f"Error deleting product: {e}")
+    return RedirectResponse("/loan-products", status_code=303)
+
+
 # ---------------------------------------------------------------------------
 # Members UI
 # ---------------------------------------------------------------------------
@@ -369,6 +378,7 @@ async def ui_apply_loan(request: Request, db: Session = Depends(get_db)):
             principal_amount=Decimal(form["principal_amount"]),
             application_date=form["application_date"],
             disbursement_date=form.get("disbursement_date") or None,
+            num_periods=int(form["num_periods"]) if form.get("num_periods") else None,
             security_provided_value=Decimal(form["security_provided_value"]) if form.get("security_provided_value") else None,
             security_provided_notes=form.get("security_provided_notes") or None,
             deposit_paid_amount=Decimal(form["deposit_paid_amount"]) if form.get("deposit_paid_amount") else None,
@@ -406,7 +416,7 @@ def ui_loan_detail(loan_id: int, request: Request, db: Session = Depends(get_db)
 
 
 @app.post("/loans/{loan_id}/approve")
-def ui_approve_loan(loan_id: int, request: Request, db: Session = Depends(get_db)):
+async def ui_approve_loan(loan_id: int, request: Request, db: Session = Depends(get_db)):
     try:
         loan_crud.approve_loan(db, loan_id)
         return RedirectResponse(f"/loans/{loan_id}", status_code=303)
@@ -415,9 +425,11 @@ def ui_approve_loan(loan_id: int, request: Request, db: Session = Depends(get_db
 
 
 @app.post("/loans/{loan_id}/reject")
-def ui_reject_loan(loan_id: int, request: Request, db: Session = Depends(get_db)):
+async def ui_reject_loan(loan_id: int, request: Request, db: Session = Depends(get_db)):
+    form = await request.form()
     try:
-        loan_crud.reject_loan(db, loan_id, reason="Rejected via UI")
+        reason = form.get("reason", "Rejected via UI")
+        loan_crud.reject_loan(db, loan_id, reason=reason)
         return RedirectResponse(f"/loans/{loan_id}", status_code=303)
     except Exception as e:
         return RedirectResponse(f"/loans/{loan_id}?error={str(e)}", status_code=303)
@@ -427,7 +439,9 @@ def ui_reject_loan(loan_id: int, request: Request, db: Session = Depends(get_db)
 async def ui_disburse_loan(loan_id: int, request: Request, db: Session = Depends(get_db)):
     form = await request.form()
     try:
-        loan_crud.disburse_loan(db, loan_id, disburse_date=form["disbursement_date"])
+        from datetime import datetime
+        disburse_date = datetime.strptime(form["disbursement_date"], "%Y-%m-%d").date()
+        loan_crud.disburse_loan(db, loan_id, disburse_date=disburse_date)
         return RedirectResponse(f"/loans/{loan_id}", status_code=303)
     except Exception as e:
         return RedirectResponse(f"/loans/{loan_id}?error={str(e)}", status_code=303)
@@ -500,27 +514,7 @@ def trigger_aging_job(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/loans/{loan_id}/approve")
-def ui_approve_loan(loan_id: int, request: Request, db: Session = Depends(get_db)):
-    notes = request.query_params.get("notes")
-    loan_crud.approve_loan(db, loan_id, notes)
-    return RedirectResponse(f"/loans/{loan_id}", status_code=303)
 
-
-@app.post("/loans/{loan_id}/reject")
-async def ui_reject_loan(loan_id: int, request: Request, db: Session = Depends(get_db)):
-    form = await request.form()
-    reason = form.get("reason", "Rejected")
-    loan_crud.reject_loan(db, loan_id, reason)
-    return RedirectResponse(f"/loans/{loan_id}", status_code=303)
-
-
-@app.post("/loans/{loan_id}/disburse")
-async def ui_disburse_loan(loan_id: int, request: Request, db: Session = Depends(get_db)):
-    form = await request.form()
-    disburse_date = datetime.strptime(form["disbursement_date"], "%Y-%m-%d").date()
-    loan_crud.disburse_loan(db, loan_id, disburse_date)
-    return RedirectResponse(f"/loans/{loan_id}", status_code=303)
 
 
 # ---------------------------------------------------------------------------
