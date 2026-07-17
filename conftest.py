@@ -9,7 +9,6 @@ If you add DB integration tests later, configure a test DATABASE_URL here.
 
 import os
 
-# Ensure tests that import app.config don't fail if .env doesn't exist yet.
-# We provide a dummy DATABASE_URL only if none is set.
+
 if "DATABASE_URL" not in os.environ:
-    os.environ["DATABASE_URL"] = "postgresql://test:test@localhost:5432/test_jiinue"
+    os.environ["DATABASE_URL"] = "postgresql://postgres:password@localhost:5432/jiinue_loans"

@@ -1,0 +1,11 @@
+GRANT USAGE, SELECT, UPDATE ON SEQUENCE members_id_seq TO wykqfeio_wykqfeio;
+GRANT USAGE, SELECT, UPDATE ON SEQUENCE member_credit_scores_id_seq TO wykqfeio_wykqfeio;
+GRANT USAGE, SELECT, UPDATE ON SEQUENCE loan_products_id_seq TO wykqfeio_wykqfeio;
+GRANT USAGE, SELECT, UPDATE ON SEQUENCE loan_product_fees_id_seq TO wykqfeio_wykqfeio;
+GRANT USAGE, SELECT, UPDATE ON SEQUENCE loan_product_penalties_id_seq TO wykqfeio_wykqfeio;
+GRANT USAGE, SELECT, UPDATE ON SEQUENCE loans_id_seq TO wykqfeio_wykqfeio;
+GRANT USAGE, SELECT, UPDATE ON SEQUENCE repayments_id_seq TO wykqfeio_wykqfeio;
+GRANT USAGE, SELECT, UPDATE ON SEQUENCE ledger_transactions_id_seq TO wykqfeio_wykqfeio;
+GRANT USAGE, SELECT, UPDATE ON SEQUENCE loan_reschedules_id_seq TO wykqfeio_wykqfeio;
+GRANT USAGE, SELECT, UPDATE ON SEQUENCE loan_schedule_entries_id_seq TO wykqfeio_wykqfeio;
+GRANT USAGE, SELECT, UPDATE ON SEQUENCE audit_log_id_seq TO wykqfeio_wykqfeio;

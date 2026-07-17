@@ -7,6 +7,7 @@ Mounts:
   /static         → CSS / static assets
 """
 
+import os
 from fastapi import FastAPI, Request, Depends, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -58,10 +59,11 @@ app = FastAPI(
 )
 
 # --- Static files ---
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+app.mount("/static", StaticFiles(directory=os.path.join(_BASE_DIR, "app", "static")), name="static")
 
 # --- Templates ---
-templates = Jinja2Templates(directory="app/templates")
+templates = Jinja2Templates(directory=os.path.join(_BASE_DIR, "app", "templates"))
 
 # --- API routers ---
 app.include_router(loan_products.router)
