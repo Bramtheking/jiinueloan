@@ -68,23 +68,21 @@ def generate_schedule(
             interest_period, repayment_frequency
         )
         installment = result.installment
-        # Flat rate: split each installment into equal interest + principal
-        total_interest = result.total_interest
-        interest_per_period = round2(total_interest / _to_d(num_periods))
-        principal_per_period = round2(
-            (principal + total_interest - interest_per_period * _to_d(num_periods - 1)
-             if True else installment - interest_per_period)
-        )
+        interest_per_period = round2(result.total_interest / _to_d(num_periods))
+        principal_per_period = round2(principal / _to_d(num_periods))
         balance = principal
         for i in range(1, num_periods + 1):
             due = _add_periods(disbursement_date, repayment_frequency, i)
             if i == num_periods:
+                # Last period: mop up any rounding residual
                 p = balance
                 inst = round2(p + interest_per_period)
             else:
-                p = round2(installment - interest_per_period)
+                p = principal_per_period
                 inst = installment
             closing = round2(balance - p)
+            if closing < 0:
+                closing = _to_d(0)
             entries.append(ScheduleEntry(
                 period_number=i,
                 due_date=due,
@@ -92,9 +90,9 @@ def generate_schedule(
                 expected_principal=p,
                 expected_interest=interest_per_period,
                 opening_balance=round2(balance),
-                closing_balance=closing if closing > 0 else _to_d(0),
+                closing_balance=closing,
             ))
-            balance = closing if closing > 0 else _to_d(0)
+            balance = closing
 
     elif interest_method == "reducing_balance":
         schedule = calculate_reducing_balance_schedule(
@@ -114,29 +112,46 @@ def generate_schedule(
             ))
 
     elif interest_method == "compound":
-        # For compound: treat like flat for schedule purposes
-        # (total amount / num_periods = equal installments)
-        result = calculate_compound_interest(
-            principal, interest_rate_pct, num_periods, interest_period
-        )
-        total_repayable = result.total_amount
-        installment = round2(total_repayable / _to_d(num_periods))
-        interest_per_period = round2(result.total_interest / _to_d(num_periods))
-        balance = principal
+        # True compound amortization:
+        # Each period compounds on remaining balance, equal installments (annuity formula).
+        # This is identical to reducing balance but with rate compounded per period.
+        from app.engine.interest import PERIODS_PER_YEAR
+        P = principal
+        r_pct = interest_rate_pct
+        ipy = PERIODS_PER_YEAR[interest_period]
+        rpy = PERIODS_PER_YEAR[repayment_frequency]
+        # Compound rate per repayment period
+        r_annual = _to_d(r_pct) / _to_d(100)
+        r_per = (1 + r_annual / ipy) ** (ipy / rpy) - 1
+
+        if r_per == 0:
+            installment = round2(P / _to_d(num_periods))
+        else:
+            installment = round2(P * r_per / (1 - (1 + r_per) ** (-num_periods)))
+
+        balance = P
         for i in range(1, num_periods + 1):
             due = _add_periods(disbursement_date, repayment_frequency, i)
-            p = round2(installment - interest_per_period)
-            closing = round2(balance - p)
+            interest_charge = round2(balance * r_per)
+            principal_component = round2(installment - interest_charge)
+            if i == num_periods:
+                principal_component = balance
+                installment_actual = round2(principal_component + interest_charge)
+            else:
+                installment_actual = installment
+            closing = round2(balance - principal_component)
+            if closing < 0:
+                closing = _to_d(0)
             entries.append(ScheduleEntry(
                 period_number=i,
                 due_date=due,
-                expected_amount=installment,
-                expected_principal=p,
-                expected_interest=interest_per_period,
+                expected_amount=installment_actual,
+                expected_principal=principal_component,
+                expected_interest=interest_charge,
                 opening_balance=round2(balance),
-                closing_balance=closing if closing > 0 else _to_d(0),
+                closing_balance=closing,
             ))
-            balance = closing if closing > 0 else _to_d(0)
+            balance = closing
 
     else:
         raise ValueError(f"Unknown interest_method: {interest_method}")

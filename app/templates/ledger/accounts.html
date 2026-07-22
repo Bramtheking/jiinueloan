@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Ledger Accounts{% endblock %}
+{% block page_title %}Ledger Accounts{% endblock %}
+{% block breadcrumb %}<a href="/">Home</a> / <a href="/ledger">Ledger</a> / Accounts{% endblock %}
+
+{% block topbar_actions %}
+  <button class="btn btn-primary btn-sm" onclick="document.getElementById('add-modal').style.display='flex'">
+    <i data-feather="plus" style="width: 14px; height: 14px;"></i> Add Account
+  </button>
+{% endblock %}
+
+{% block content %}
+
+<!-- Add Modal — positioned at TOP -->
+<div id="add-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:flex-start; padding-top:60px;">
+  <div class="card" style="width:520px; max-width:95%; background:var(--bg-card);">
+    <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+      <h2>Add Ledger Account</h2>
+      <button class="btn btn-xs btn-outline" onclick="document.getElementById('add-modal').style.display='none'"><i data-feather="x"></i></button>
+    </div>
+    <div class="card-body">
+      <form method="POST" action="/ledger/accounts/new">
+        <div class="form-group" style="margin-bottom:12px">
+          <label>Account Name *</label>
+          <input name="name" required placeholder="e.g. Interest Income Account">
+        </div>
+        <div class="form-group" style="margin-bottom:12px">
+          <label>Account Purpose</label>
+          <select name="account_type">
+            <option value="">— General purpose —</option>
+            <option value="loan_disbursement">Loan Disbursement</option>
+            <option value="loan_repayment">Loan Repayment</option>
+            <option value="interest_income">Interest Income</option>
+            <option value="fee_income">Fee Income</option>
+            <option value="penalty_income">Penalty Income</option>
+            <option value="member_deposit">Member Deposit / Security</option>
+            <option value="savings">Savings</option>
+            <option value="expense">Expense</option>
+            <option value="other">Other</option>
+          </select>
+          <span class="form-hint">Used to categorise this account for reporting.</span>
+        </div>
+        <div class="form-group" style="margin-bottom:16px">
+          <label>Description</label>
+          <textarea name="description" rows="2" placeholder="Optional description"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%">Create Account</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Modal — positioned at TOP -->
+<div id="edit-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:flex-start; padding-top:60px;">
+  <div class="card" style="width:520px; max-width:95%; background:var(--bg-card);">
+    <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+      <h2>Edit Ledger Account</h2>
+      <button class="btn btn-xs btn-outline" onclick="document.getElementById('edit-modal').style.display='none'"><i data-feather="x"></i></button>
+    </div>
+    <div class="card-body">
+      <form id="edit-form" method="POST">
+        <div class="form-group" style="margin-bottom:12px">
+          <label>Account Name *</label>
+          <input id="edit-name" name="name" required>
+        </div>
+        <div class="form-group" style="margin-bottom:12px">
+          <label>Account Purpose</label>
+          <select id="edit-type" name="account_type">
+            <option value="">— General purpose —</option>
+            <option value="loan_disbursement">Loan Disbursement</option>
+            <option value="loan_repayment">Loan Repayment</option>
+            <option value="interest_income">Interest Income</option>
+            <option value="fee_income">Fee Income</option>
+            <option value="penalty_income">Penalty Income</option>
+            <option value="member_deposit">Member Deposit / Security</option>
+            <option value="savings">Savings</option>
+            <option value="expense">Expense</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:12px">
+          <label>Description</label>
+          <textarea id="edit-description" name="description" rows="2"></textarea>
+        </div>
+        <div class="form-check" style="margin-bottom:16px">
+          <input type="checkbox" id="edit-active" name="is_active">
+          <label for="edit-active">Active</label>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%">Save Changes</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2>Chart of Accounts</h2>
+    <span class="text-muted" style="font-size:12px">{{ accounts | length }} accounts</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Account Name</th>
+          <th>Purpose</th>
+          <th>Description</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for acc in accounts %}
+        <tr {% if not acc.is_active %}style="opacity:0.5"{% endif %}>
+          <td class="fw-600">{{ acc.name }}</td>
+          <td>
+            {% if acc.account_type %}
+              <span class="badge badge-info" style="font-size:10px">{{ acc.account_type.replace('_', ' ').title() }}</span>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td class="text-muted">{{ acc.description or '—' }}</td>
+          <td>
+            {% if acc.is_active %}
+              <span class="badge badge-success">Active</span>
+            {% else %}
+              <span class="badge badge-secondary">Inactive</span>
+            {% endif %}
+          </td>
+          <td>
+            <button class="btn btn-outline btn-xs" onclick="editAccount({{ acc.id }}, '{{ acc.name }}', '{{ acc.account_type or '' }}', '{{ acc.description or '' }}', {{ 'true' if acc.is_active else 'false' }})">Edit</button>
+            <form method="POST" action="/ledger/accounts/{{ acc.id }}/delete" style="display:inline" onsubmit="return confirm('Delete {{ acc.name }}?')">
+              <button type="submit" class="btn btn-danger btn-xs">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr class="table-empty"><td colspan="5">No accounts yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function editAccount(id, name, type, desc, active) {
+  document.getElementById('edit-name').value = name;
+  document.getElementById('edit-description').value = desc;
+  document.getElementById('edit-active').checked = active;
+  const sel = document.getElementById('edit-type');
+  for (let o of sel.options) o.selected = (o.value === type);
+  document.getElementById('edit-form').action = `/ledger/accounts/${id}/edit`;
+  document.getElementById('edit-modal').style.display = 'flex';
+}
+</script>
+{% endblock %}

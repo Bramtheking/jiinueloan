@@ -122,7 +122,8 @@ def ui_list_products(request: Request, db: Session = Depends(get_db)):
 
 
 @app.get("/loan-products/new", response_class=HTMLResponse)
-def ui_new_product_form(request: Request):
+def ui_new_product_form(request: Request, db: Session = Depends(get_db)):
+    from app.crud.ledger_account import get_account_names
     return templates.TemplateResponse("loan_products/form.html", {
         "request": request,
         "product": None,
@@ -136,12 +137,14 @@ def ui_new_product_form(request: Request):
         "penalty_triggers": [e.value for e in PenaltyTrigger],
         "penalty_basis": [e.value for e in PenaltyBasis],
         "offset_covers": [e.value for e in OffsetCoverType],
+        "ledger_accounts": get_account_names(db),
         "error": None,
     })
 
 
 @app.get("/loan-products/{product_id}/edit", response_class=HTMLResponse)
 def ui_edit_product_form(product_id: int, request: Request, db: Session = Depends(get_db)):
+    from app.crud.ledger_account import get_account_names
     product = lp_crud.get_product_by_id(db, product_id)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -158,12 +161,14 @@ def ui_edit_product_form(product_id: int, request: Request, db: Session = Depend
         "penalty_triggers": [e.value for e in PenaltyTrigger],
         "penalty_basis": [e.value for e in PenaltyBasis],
         "offset_covers": [e.value for e in OffsetCoverType],
+        "ledger_accounts": get_account_names(db),
         "error": None,
     })
 
 
 @app.post("/loan-products/new")
 async def ui_create_product(request: Request, db: Session = Depends(get_db)):
+    from app.crud.ledger_account import get_account_names
     form = await request.form()
     try:
         fees = _parse_fees_from_form(form)
@@ -200,6 +205,7 @@ async def ui_create_product(request: Request, db: Session = Depends(get_db)):
             offset_covers=form.get("offset_covers") or None,
             offset_fee_type=form.get("offset_fee_type") or None,
             offset_fee_value=Decimal(form["offset_fee_value"]) if form.get("offset_fee_value") else None,
+            allocation_order=form.get("allocation_order") or "penalty,interest,principal",
             fees=fees,
             penalties=_parse_penalties_from_form(form),
         )
@@ -216,12 +222,17 @@ async def ui_create_product(request: Request, db: Session = Depends(get_db)):
             "deposit_types": [e2.value for e2 in DepositType],
             "penalty_types": [e2.value for e2 in LatePaymentPenaltyType],
             "fee_types": [e2.value for e2 in FeeType],
+            "penalty_triggers": [e2.value for e2 in PenaltyTrigger],
+            "penalty_basis": [e2.value for e2 in PenaltyBasis],
+            "offset_covers": [e2.value for e2 in OffsetCoverType],
+            "ledger_accounts": get_account_names(db),
             "error": str(e),
         })
 
 
 @app.post("/loan-products/{product_id}/edit")
 async def ui_update_product(product_id: int, request: Request, db: Session = Depends(get_db)):
+    from app.crud.ledger_account import get_account_names
     product = lp_crud.get_product_by_id(db, product_id)
     form = await request.form()
     try:
@@ -259,6 +270,7 @@ async def ui_update_product(product_id: int, request: Request, db: Session = Dep
             offset_covers=form.get("offset_covers") or None,
             offset_fee_type=form.get("offset_fee_type") or None,
             offset_fee_value=Decimal(form["offset_fee_value"]) if form.get("offset_fee_value") else None,
+            allocation_order=form.get("allocation_order") or "penalty,interest,principal",
             fees=fees,
             penalties=_parse_penalties_from_form(form),
         )
@@ -275,6 +287,10 @@ async def ui_update_product(product_id: int, request: Request, db: Session = Dep
             "deposit_types": [e2.value for e2 in DepositType],
             "penalty_types": [e2.value for e2 in LatePaymentPenaltyType],
             "fee_types": [e2.value for e2 in FeeType],
+            "penalty_triggers": [e2.value for e2 in PenaltyTrigger],
+            "penalty_basis": [e2.value for e2 in PenaltyBasis],
+            "offset_covers": [e2.value for e2 in OffsetCoverType],
+            "ledger_accounts": get_account_names(db),
             "error": str(e),
         })
 
@@ -342,6 +358,107 @@ def ui_delete_member(member_id: int, db: Session = Depends(get_db)):
 
 
 # ---------------------------------------------------------------------------
+# Member Deposits UI
+# ---------------------------------------------------------------------------
+
+@app.get("/members/{member_id}/deposits", response_class=HTMLResponse)
+def ui_member_deposits(member_id: int, request: Request, db: Session = Depends(get_db)):
+    from app.models.member_deposit import MemberDeposit
+    member = member_crud.get_member(db, member_id)
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+    deposits = db.query(MemberDeposit).filter(MemberDeposit.member_id == member_id).order_by(MemberDeposit.deposit_date.desc()).all()
+    total = sum(d.amount for d in deposits if not d.is_locked)
+    return templates.TemplateResponse("members/deposits.html", {
+        "request": request,
+        "member": member,
+        "deposits": deposits,
+        "total": total,
+        "today": date.today().isoformat(),
+        "error": None,
+    })
+
+
+@app.post("/members/{member_id}/deposits")
+async def ui_add_member_deposit(member_id: int, request: Request, db: Session = Depends(get_db)):
+    from app.models.member_deposit import MemberDeposit
+    from datetime import datetime as dt
+    form = await request.form()
+    try:
+        dep = MemberDeposit(
+            member_id=member_id,
+            amount=Decimal(form["amount"]),
+            deposit_date=form["deposit_date"],
+            description=form.get("description") or None,
+        )
+        db.add(dep)
+        db.commit()
+    except Exception as e:
+        pass
+    return RedirectResponse(f"/members/{member_id}/deposits", status_code=303)
+
+
+@app.post("/members/{member_id}/deposits/{deposit_id}/delete")
+def ui_delete_member_deposit(member_id: int, deposit_id: int, db: Session = Depends(get_db)):
+    from app.models.member_deposit import MemberDeposit
+    dep = db.query(MemberDeposit).filter(MemberDeposit.id == deposit_id).first()
+    if dep and not dep.is_locked:
+        db.delete(dep)
+        db.commit()
+    return RedirectResponse(f"/members/{member_id}/deposits", status_code=303)
+
+
+# ---------------------------------------------------------------------------
+# Member Assets UI
+# ---------------------------------------------------------------------------
+
+@app.get("/members/{member_id}/assets", response_class=HTMLResponse)
+def ui_member_assets(member_id: int, request: Request, db: Session = Depends(get_db)):
+    from app.models.asset import Asset
+    member = member_crud.get_member(db, member_id)
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+    assets = db.query(Asset).filter(Asset.member_id == member_id).order_by(Asset.created_at.desc()).all()
+    return templates.TemplateResponse("members/assets.html", {
+        "request": request,
+        "member": member,
+        "assets": assets,
+        "today": date.today().isoformat(),
+    })
+
+
+@app.post("/members/{member_id}/assets")
+async def ui_add_member_asset(member_id: int, request: Request, db: Session = Depends(get_db)):
+    from app.models.asset import Asset
+    form = await request.form()
+    try:
+        asset = Asset(
+            member_id=member_id,
+            asset_name=form["asset_name"],
+            asset_type=form["asset_type"],
+            estimated_value=Decimal(form["estimated_value"]),
+            valuation_date=form["valuation_date"],
+            reference_number=form.get("reference_number") or None,
+            description=form.get("description") or None,
+        )
+        db.add(asset)
+        db.commit()
+    except Exception:
+        pass
+    return RedirectResponse(f"/members/{member_id}/assets", status_code=303)
+
+
+@app.post("/members/{member_id}/assets/{asset_id}/delete")
+def ui_delete_member_asset(member_id: int, asset_id: int, db: Session = Depends(get_db)):
+    from app.models.asset import Asset
+    asset = db.query(Asset).filter(Asset.id == asset_id).first()
+    if asset and not asset.is_pledged:
+        db.delete(asset)
+        db.commit()
+    return RedirectResponse(f"/members/{member_id}/assets", status_code=303)
+
+
+# ---------------------------------------------------------------------------
 # Loans UI
 # ---------------------------------------------------------------------------
 
@@ -356,8 +473,22 @@ def ui_loans_list(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/loans/apply", response_class=HTMLResponse)
 def ui_apply_loan_form(request: Request, db: Session = Depends(get_db)):
+    import json
     members = db.query(Member).order_by(Member.id).all()
     products = lp_crud.list_products(db, active_only=True)
+    # Add total_deposits to each member
+    from app.models.member_deposit import MemberDeposit
+    from sqlalchemy import func as sqlfunc
+    dep_totals = dict(db.query(MemberDeposit.member_id, sqlfunc.sum(MemberDeposit.amount))
+                      .filter(MemberDeposit.is_locked == 0).group_by(MemberDeposit.member_id).all())
+    for m in members:
+        m.total_deposits = float(dep_totals.get(m.id, 0))
+    # Serialize fees for JS
+    for p in products:
+        p.fees_json = json.dumps([{
+            "fee_name": f.fee_name, "fee_type": f.fee_type.value,
+            "fee_value": float(f.fee_value)
+        } for f in p.fees])
     return templates.TemplateResponse("loans/apply.html", {
         "request": request,
         "members": members,
@@ -369,14 +500,31 @@ def ui_apply_loan_form(request: Request, db: Session = Depends(get_db)):
 
 @app.post("/loans/apply")
 async def ui_apply_loan(request: Request, db: Session = Depends(get_db)):
+    import json
+    from app.models.member_deposit import MemberDeposit
+    from sqlalchemy import func as sqlfunc
     form = await request.form()
     members = db.query(Member).order_by(Member.id).all()
+    dep_totals = dict(db.query(MemberDeposit.member_id, sqlfunc.sum(MemberDeposit.amount))
+                      .filter(MemberDeposit.is_locked == 0).group_by(MemberDeposit.member_id).all())
+    for m in members:
+        m.total_deposits = float(dep_totals.get(m.id, 0))
     products = lp_crud.list_products(db, active_only=True)
+    for p in products:
+        p.fees_json = json.dumps([{
+            "fee_name": f.fee_name, "fee_type": f.fee_type.value,
+            "fee_value": float(f.fee_value)
+        } for f in p.fees])
     try:
+        # Use first guarantor for legacy field; save all to loan_guarantors table
+        guarantor_ids = form.getlist("guarantor_ids")
+        guarantor_ids = [int(g) for g in guarantor_ids if g]
+        first_guarantor = guarantor_ids[0] if guarantor_ids else None
+
         data = LoanCreate(
             member_id=int(form["member_id"]),
             loan_product_id=int(form["loan_product_id"]),
-            guarantor_member_id=int(form["guarantor_member_id"]) if form.get("guarantor_member_id") else None,
+            guarantor_member_id=first_guarantor,
             principal_amount=Decimal(form["principal_amount"]),
             application_date=form["application_date"],
             disbursement_date=form.get("disbursement_date") or None,
@@ -386,6 +534,14 @@ async def ui_apply_loan(request: Request, db: Session = Depends(get_db)):
             deposit_paid_amount=Decimal(form["deposit_paid_amount"]) if form.get("deposit_paid_amount") else None,
         )
         loan = loan_crud.create_loan(db, data)
+
+        # Save additional guarantors
+        if len(guarantor_ids) > 1:
+            from app.models.loan_guarantor import LoanGuarantor
+            for gid in guarantor_ids[1:]:
+                db.add(LoanGuarantor(loan_id=loan.id, member_id=gid))
+            db.commit()
+
         return RedirectResponse(f"/loans/{loan.id}", status_code=303)
     except Exception as e:
         return templates.TemplateResponse("loans/apply.html", {
@@ -583,12 +739,14 @@ def ui_ledger(
     loan_id: Optional[int] = None,
     db: Session = Depends(get_db),
 ):
+    from app.crud.ledger_account import get_account_names
     transactions = ledger_crud.list_transactions(db, account_name=account_name, loan_id=loan_id)
     return templates.TemplateResponse("ledger/list.html", {
         "request": request,
         "transactions": transactions,
         "filter_account": account_name or "",
         "filter_loan_id": loan_id or "",
+        "ledger_accounts": get_account_names(db),
         "error": None,
     })
 
@@ -608,12 +766,14 @@ async def ui_manual_transaction(request: Request, db: Session = Depends(get_db))
         ledger_crud.create_manual_transaction(db, data)
         return RedirectResponse("/ledger", status_code=303)
     except Exception as e:
+        from app.crud.ledger_account import get_account_names
         transactions = ledger_crud.list_transactions(db)
         return templates.TemplateResponse("ledger/list.html", {
             "request": request,
             "transactions": transactions,
             "filter_account": "",
             "filter_loan_id": "",
+            "ledger_accounts": get_account_names(db),
             "error": str(e),
         })
 
@@ -625,6 +785,62 @@ def ui_reverse_transaction(transaction_id: int, db: Session = Depends(get_db)):
     except ValueError:
         pass
     return RedirectResponse("/ledger", status_code=303)
+
+
+# ---------------------------------------------------------------------------
+# Ledger Accounts UI
+# ---------------------------------------------------------------------------
+
+@app.get("/ledger/accounts", response_class=HTMLResponse)
+def ui_ledger_accounts(request: Request, db: Session = Depends(get_db)):
+    from app.crud.ledger_account import list_accounts
+    accounts = list_accounts(db)
+    return templates.TemplateResponse("ledger/accounts.html", {
+        "request": request,
+        "accounts": accounts,
+    })
+
+
+@app.post("/ledger/accounts/new")
+async def ui_create_ledger_account(request: Request, db: Session = Depends(get_db)):
+    from app.crud.ledger_account import create_account
+    form = await request.form()
+    try:
+        create_account(db, name=form["name"], description=form.get("description", ""), account_type=form.get("account_type", ""))
+    except Exception:
+        pass
+    return RedirectResponse("/ledger/accounts", status_code=303)
+
+
+@app.post("/ledger/accounts/{account_id}/edit")
+async def ui_edit_ledger_account(account_id: int, request: Request, db: Session = Depends(get_db)):
+    from app.crud.ledger_account import update_account
+    form = await request.form()
+    try:
+        update_account(
+            db, account_id,
+            name=form["name"],
+            description=form.get("description", ""),
+            account_type=form.get("account_type", ""),
+            is_active="is_active" in form,
+        )
+    except Exception:
+        pass
+    return RedirectResponse("/ledger/accounts", status_code=303)
+
+
+@app.post("/ledger/accounts/{account_id}/delete")
+def ui_delete_ledger_account(account_id: int, db: Session = Depends(get_db)):
+    from app.crud.ledger_account import delete_account
+    delete_account(db, account_id)
+    return RedirectResponse("/ledger/accounts", status_code=303)
+
+
+# API endpoint — returns ledger account names as JSON (for dropdowns)
+@app.get("/api/ledger-accounts")
+def api_ledger_accounts(db: Session = Depends(get_db)):
+    from app.crud.ledger_account import get_account_names
+    return get_account_names(db)
 
 
 # ---------------------------------------------------------------------------
@@ -654,7 +870,7 @@ def _parse_fees_from_form(form) -> list:
     fee_names = form.getlist("fee_name")
     fee_types = form.getlist("fee_type")
     fee_values = form.getlist("fee_value")
-    affects_principals = form.getlist("affects_principal")
+    fee_bases = form.getlist("fee_basis")
     ledger_accounts = form.getlist("ledger_account_name")
 
     fees = []
@@ -665,7 +881,8 @@ def _parse_fees_from_form(form) -> list:
             fee_name=name.strip(),
             fee_type=fee_types[i] if i < len(fee_types) else "fixed_amount",
             fee_value=Decimal(fee_values[i]) if i < len(fee_values) and fee_values[i] else Decimal("0"),
-            affects_principal=str(i) in affects_principals or fee_names[i] + "_affects" in form,
+            fee_basis=fee_bases[i] if i < len(fee_bases) and fee_bases[i] else "principal",
+            affects_principal=False,
             show_in_statement=True,
             ledger_account_name=ledger_accounts[i] if i < len(ledger_accounts) else name.strip() + " Account",
         ))

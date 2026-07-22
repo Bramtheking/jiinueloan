@@ -25,6 +25,7 @@ class LoanProductFeeCreate(BaseModel):
     fee_name: str
     fee_type: FeeType
     fee_value: Decimal
+    fee_basis: Optional[str] = "principal"
     affects_principal: bool = False
     show_in_statement: bool = True
     ledger_account_name: str
@@ -104,6 +105,9 @@ class LoanProductCreate(BaseModel):
     offset_covers: Optional[OffsetCoverType] = None
     offset_fee_type: Optional[LatePaymentPenaltyType] = None
     offset_fee_value: Optional[Decimal] = None
+
+    # Repayment allocation order
+    allocation_order: Optional[str] = "penalty,interest,principal"
 
     fees: List[LoanProductFeeCreate] = []
     penalties: List[LoanProductPenaltyCreate] = []

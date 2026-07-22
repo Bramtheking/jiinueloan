@@ -53,9 +53,10 @@ def allocate_payment(
     interest_due: Decimal | float | int,
     outstanding_principal: Decimal | float | int,
     expected_installment: Decimal | float | int = Decimal("0"),
+    allocation_order: str = "penalty,interest,principal",
 ) -> AllocationResult:
     """
-    Allocate `amount_paid` in the order: penalty → interest → principal.
+    Allocate `amount_paid` according to allocation_order.
 
     Parameters
     ----------
@@ -64,6 +65,7 @@ def allocate_payment(
     interest_due:          Interest accrued since last payment or disbursement.
     outstanding_principal: Remaining principal balance before this payment.
     expected_installment:  What the member *should* have paid (for under/overpay flags).
+    allocation_order:      Priority order e.g. "penalty,interest,principal" or "interest,penalty,principal"
 
     Returns
     -------
@@ -76,25 +78,34 @@ def allocate_payment(
     expected = _to_d(expected_installment)
 
     remaining = paid
+    to_penalty = _to_d(0)
+    to_interest = _to_d(0)
+    to_principal = _to_d(0)
 
-    # 1. Apply to penalty first
-    to_penalty = min(remaining, penalty)
-    remaining -= to_penalty
-    penalty_left = penalty - to_penalty
+    # Parse order
+    order = [s.strip() for s in allocation_order.split(",")]
 
-    # 2. Apply to interest
-    to_interest = min(remaining, interest)
-    remaining -= to_interest
-    interest_left = interest - to_interest
+    for item in order:
+        if item == "penalty" and penalty > 0:
+            amount = min(remaining, penalty)
+            to_penalty += amount
+            penalty -= amount
+            remaining -= amount
+        elif item == "interest" and interest > 0:
+            amount = min(remaining, interest)
+            to_interest += amount
+            interest -= amount
+            remaining -= amount
+        elif item == "principal" and principal > 0:
+            amount = min(remaining, principal)
+            to_principal += amount
+            principal -= amount
+            remaining -= amount
 
-    # 3. Apply to principal
-    to_principal = min(remaining, principal)
-    remaining -= to_principal  # remaining now = overpayment (excess cash)
-
-    new_balance = round2(principal - to_principal)
+    new_balance = round2(principal)
 
     # Overpaid if there is still cash left after clearing everything
-    total_owed = penalty + interest + principal
+    total_owed = _to_d(penalty_due) + _to_d(interest_due) + _to_d(outstanding_principal)
     is_overpaid = paid > total_owed
     # Underpaid if paid less than expected installment (and loan not fully cleared)
     is_underpaid = (expected > 0 and paid < expected and new_balance > 0)
@@ -105,8 +116,8 @@ def allocate_payment(
         amount_to_interest=round2(to_interest),
         amount_to_principal=round2(to_principal),
         remaining_balance_after=new_balance,
-        penalty_remaining_after=round2(penalty_left),
-        interest_remaining_after=round2(interest_left),
+        penalty_remaining_after=round2(_to_d(penalty_due) - to_penalty),
+        interest_remaining_after=round2(_to_d(interest_due) - to_interest),
         is_underpaid=is_underpaid,
         is_overpaid=is_overpaid,
     )

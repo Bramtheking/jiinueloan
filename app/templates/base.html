@@ -6,6 +6,14 @@
   <title>{% block title %}Jiinue Loans{% endblock %} — Admin</title>
   <meta name="description" content="Jiinue SACCO Loan Management Admin Panel">
   <style>html,body{background:#0f1117;}</style>
+  <script>
+    // Apply theme before CSS loads to prevent flash
+    (function() {
+      const t = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+      if (t === 'light') document.documentElement.style.background = '#f4f5f7';
+    })();
+  </script>
   <link rel="stylesheet" href="/static/style.css">
   <script src="https://unpkg.com/feather-icons"></script>
   <script src="https://unpkg.com/htmx.org@1.9.10"></script>
@@ -42,8 +50,11 @@
   </a>
 
   <div class="nav-section">Finance</div>
-  <a href="/ledger" class="nav-item {% if '/ledger' in request.url.path %}active{% endif %}">
+  <a href="/ledger" class="nav-item {% if request.url.path == '/ledger' %}active{% endif %}">
     <i data-feather="book" class="icon"></i> Ledger
+  </a>
+  <a href="/ledger/accounts" class="nav-item {% if '/ledger/accounts' in request.url.path %}active{% endif %}">
+    <i data-feather="layers" class="icon"></i> Ledger Accounts
   </a>
   <a href="/audit-log" class="nav-item {% if '/audit-log' in request.url.path %}active{% endif %}">
     <i data-feather="search" class="icon"></i> Audit Log
@@ -68,7 +79,10 @@
       </div>
       <h1>{% block page_title %}Dashboard{% endblock %}</h1>
     </div>
-    <div class="flex gap-2">
+    <div class="flex gap-2" style="align-items:center">
+      <button id="theme-toggle" class="btn btn-outline btn-sm" onclick="toggleTheme()" title="Toggle theme">
+        <i data-feather="sun" style="width:14px;height:14px" id="theme-icon"></i>
+      </button>
       {% block topbar_actions %}{% endblock %}
     </div>
   </div>
@@ -79,9 +93,22 @@
 </div>
 
 <script>
+// Theme toggle
+function toggleTheme() {
+  const html = document.documentElement;
+  const isDark = html.getAttribute('data-theme') !== 'light';
+  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  localStorage.setItem('theme', isDark ? 'light' : 'dark');
+  document.getElementById('theme-icon').setAttribute('data-feather', isDark ? 'moon' : 'sun');
+  feather.replace();
+}
+(function() {
+  const saved = localStorage.getItem('theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', saved);
+})();
+
 // Toggle conditional form sections based on checkbox state
 function toggleConditional(checkboxId, targetId) {
-  const cb = document.getElementById(checkboxId);
   const target = document.getElementById(targetId);
   if (!cb || !target) return;
   const update = () => { target.style.display = cb.checked ? 'block' : 'none'; };

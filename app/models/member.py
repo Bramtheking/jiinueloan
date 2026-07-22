@@ -33,3 +33,10 @@ class Member(Base):
     credit_score: Mapped["MemberCreditScore | None"] = relationship(  # type: ignore[name-defined]
         "MemberCreditScore", back_populates="member", uselist=False
     )
+    deposits: Mapped[list["MemberDeposit"]] = relationship(  # type: ignore[name-defined]
+        "MemberDeposit", back_populates="member", cascade="all, delete-orphan",
+        order_by="MemberDeposit.deposit_date"
+    )
+    assets: Mapped[list["Asset"]] = relationship(  # type: ignore[name-defined]
+        "Asset", back_populates="member", cascade="all, delete-orphan"
+    )

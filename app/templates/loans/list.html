@@ -38,10 +38,10 @@
             <span class="text-muted" style="font-size:10px">v{{ loan.loan_product.version_number if loan.loan_product else '' }}</span>
           </td>
           <td><span class="badge badge-{{ loan.status.value }}">{{ loan.status.value.replace('_', ' ').title() }}</span></td>
-          <td class="text-right">{{ "{:,.2f}".format(loan.principal_amount) }}</td>
+          <td class="text-right">{{ "{:,.0f}".format(loan.principal_amount) }}</td>
           <td class="text-right">
             {% if loan.outstanding_balance > 0 %}
-              <span class="amount-out">{{ "{:,.2f}".format(loan.outstanding_balance) }}</span>
+              <span class="amount-out">{{ "{:,.0f}".format(loan.outstanding_balance) }}</span>
             {% else %}
               <span class="text-muted">0.00</span>
             {% endif %}

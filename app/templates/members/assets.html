@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Assets — {{ member.name }}{% endblock %}
+{% block page_title %}Asset Register{% endblock %}
+{% block breadcrumb %}<a href="/">Home</a> / <a href="/members">Members</a> / {{ member.name }} / Assets{% endblock %}
+
+{% block topbar_actions %}
+  <a href="/members/{{ member.id }}/edit" class="btn btn-outline btn-sm">Edit Member</a>
+{% endblock %}
+
+{% block content %}
+<div style="display:grid; grid-template-columns:1fr 360px; gap:20px; align-items:start">
+
+  <div>
+    <div class="card">
+      <div class="card-header">
+        <h2>{{ member.name }} — Assets</h2>
+        <span class="text-muted" style="font-size:12px">{{ assets | length }} asset(s)</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Asset</th>
+              <th>Type</th>
+              <th class="text-right">Est. Value (KES)</th>
+              <th>Reference</th>
+              <th>Valued On</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in assets %}
+            <tr {% if a.is_pledged %}style="opacity:0.65"{% endif %}>
+              <td class="fw-600">{{ a.asset_name }}</td>
+              <td class="text-muted">{{ a.asset_type }}</td>
+              <td class="text-right amount-in">{{ "{:,.0f}".format(a.estimated_value) }}</td>
+              <td class="text-muted" style="font-size:12px">{{ a.reference_number or '—' }}</td>
+              <td class="text-muted">{{ a.valuation_date }}</td>
+              <td>
+                {% if a.is_pledged %}
+                  <span class="badge badge-warning">Pledged (Loan #{{ a.pledged_loan_id }})</span>
+                {% else %}
+                  <span class="badge badge-success">Available</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if not a.is_pledged %}
+                <form method="POST" action="/members/{{ member.id }}/assets/{{ a.id }}/delete"
+                      style="display:inline" onsubmit="return confirm('Delete this asset?')">
+                  <button type="submit" class="btn btn-danger btn-xs">Delete</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr class="table-empty"><td colspan="7">No assets registered.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <div class="card-header"><h2>Register Asset</h2></div>
+      <div class="card-body">
+        <form method="POST" action="/members/{{ member.id }}/assets">
+          <div class="form-group" style="margin-bottom:12px">
+            <label>Asset Name *</label>
+            <input name="asset_name" required placeholder="e.g. Toyota Hilux, Parcel L.R. 123">
+          </div>
+          <div class="form-group" style="margin-bottom:12px">
+            <label>Asset Type *</label>
+            <select name="asset_type" required>
+              <option value="">— Select type —</option>
+              <option value="Land">Land / Real Estate</option>
+              <option value="Vehicle">Vehicle</option>
+              <option value="Equipment">Equipment / Machinery</option>
+              <option value="Livestock">Livestock</option>
+              <option value="Financial">Financial Instrument</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:12px">
+            <label>Estimated Value (KES) *</label>
+            <input name="estimated_value" type="number" step="1" required placeholder="e.g. 500000">
+          </div>
+          <div class="form-group" style="margin-bottom:12px">
+            <label>Valuation Date *</label>
+            <input name="valuation_date" type="date" value="{{ today }}" required>
+          </div>
+          <div class="form-group" style="margin-bottom:12px">
+            <label>Reference Number</label>
+            <input name="reference_number" placeholder="e.g. Title deed LR/123, Reg. KBZ 123A">
+          </div>
+          <div class="form-group" style="margin-bottom:16px">
+            <label>Description</label>
+            <textarea name="description" rows="2" placeholder="Additional details"></textarea>
+          </div>
+          <button type="submit" class="btn btn-success" style="width:100%">
+            <i data-feather="plus" style="width:16px;height:16px"></i> Register Asset
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h2>Member Summary</h2></div>
+      <div class="card-body">
+        <div class="info-grid">
+          <div class="info-item"><label>Savings Balance</label>
+            <div class="val amount-in">KES {{ "{:,.0f}".format(member.savings_balance) }}</div>
+          </div>
+          <div class="info-item"><label>Total Asset Value</label>
+            <div class="val amount-in">KES {{ "{:,.0f}".format(assets | sum(attribute='estimated_value')) }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

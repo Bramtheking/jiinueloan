@@ -82,6 +82,19 @@ def create_loan(db: Session, data: LoanCreate) -> Loan:
     if not product.requires_appraisal and not product.requires_board_approval:
         initial_status = LoanStatus.approved
 
+    # Convert user-entered months to actual installments based on repayment frequency
+    # User always enters number of MONTHS regardless of frequency
+    input_months = data.num_periods or product.max_repayment_period or 12
+    freq = product.repayment_frequency.value
+    if freq == "daily":
+        actual_periods = input_months * 30   # 1 month = 30 daily payments
+    elif freq == "weekly":
+        actual_periods = round(input_months * 4.333)  # 1 month ≈ 4.33 weeks
+    elif freq == "yearly":
+        actual_periods = max(1, round(input_months / 12))  # months → years
+    else:
+        actual_periods = input_months  # monthly stays as-is
+
     loan = Loan(
         loan_number=_generate_loan_number(db),
         member_id=data.member_id,
@@ -93,7 +106,7 @@ def create_loan(db: Session, data: LoanCreate) -> Loan:
         deposit_paid_amount=data.deposit_paid_amount,
         application_date=data.application_date,
         disbursement_date=data.disbursement_date,
-        num_periods=data.num_periods or product.max_repayment_period or 12,
+        num_periods=actual_periods,
         status=initial_status,
         outstanding_balance=data.principal_amount,
     )

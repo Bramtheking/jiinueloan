@@ -120,8 +120,12 @@ def _process_aging(db: Session, today: date):
         w_days = product.watchful_after_days or 30
         np_days = product.non_performing_after_days or 90
         d_days = product.doubtful_after_days or 180
+        # Loss/write-off threshold = doubtful + 90 days
+        loss_days = d_days + 90
 
-        if overdue_days >= d_days:
+        if overdue_days >= loss_days:
+            new_status = LoanStatus.written_off
+        elif overdue_days >= d_days:
             new_status = LoanStatus.doubtful
         elif overdue_days >= np_days:
             new_status = LoanStatus.non_performing
@@ -169,8 +173,13 @@ def _apply_auto_penalty(db: Session, loan: Loan, product, today: date):
     if penalty_amount <= 0:
         return
 
+    # Use ledger account from first active penalty config, fallback to default
+    ledger_acct = "Penalty Income Account"
+    if product.penalties:
+        ledger_acct = product.penalties[0].ledger_account_name or ledger_acct
+
     tx = LedgerTransaction(
-        account_name="Penalty Income",
+        account_name=ledger_acct,
         description=f"Auto late-payment penalty — {loan.loan_number}",
         money_in=penalty_amount,
         related_loan_id=loan.id,

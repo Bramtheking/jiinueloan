@@ -22,6 +22,8 @@ class PenaltyBasis(str, enum.Enum):
     fixed_amount = "fixed_amount"
     percent_of_balance = "percent_of_balance"
     percent_of_principal = "percent_of_principal"
+    percent_of_savings = "percent_of_savings"
+    percent_of_deposit = "percent_of_deposit"
 
 
 class LoanProductPenalty(Base):

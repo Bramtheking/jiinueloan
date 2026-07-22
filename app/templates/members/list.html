@@ -37,7 +37,7 @@
           <td class="text-muted">{{ m.phone or '—' }}</td>
           <td class="text-right">
             <span class="{% if m.savings_balance > 0 %}amount-in{% else %}text-muted{% endif %}">
-              {{ "{:,.2f}".format(m.savings_balance) }}
+              {{ "{:,.0f}".format(m.savings_balance) }}
             </span>
           </td>
           <td class="text-center">
@@ -54,6 +54,8 @@
           </td>
           <td class="text-muted">{{ m.created_at.strftime('%Y-%m-%d') if m.created_at else '—' }}</td>
           <td>
+            <a href="/members/{{ m.id }}/deposits" class="btn btn-outline btn-xs">Deposits</a>
+            <a href="/members/{{ m.id }}/assets" class="btn btn-outline btn-xs">Assets</a>
             <a href="/members/{{ m.id }}/edit" class="btn btn-outline btn-xs">Edit</a>
             <form method="POST" action="/members/{{ m.id }}/delete" style="display:inline" onsubmit="return confirm('Delete this member?');">
               <button type="submit" class="btn btn-danger btn-xs">Delete</button>

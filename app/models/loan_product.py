@@ -121,6 +121,12 @@ class LoanProduct(Base):
     deposit_type: Mapped[DepositType | None] = mapped_column(Enum(DepositType), nullable=True)
     deposit_value: Mapped[Decimal | None] = mapped_column(Numeric(15, 2), nullable=True)
 
+    # Repayment allocation order (comma-separated priority)
+    # e.g. "penalty,interest,principal" or "interest,penalty,principal"
+    allocation_order: Mapped[str | None] = mapped_column(
+        String(100), nullable=True, default="penalty,interest,principal"
+    )
+
     # Late payment penalty (legacy single-penalty; new multi-penalty via LoanProductPenalty)
     late_payment_penalty_type: Mapped[LatePaymentPenaltyType | None] = mapped_column(
         Enum(LatePaymentPenaltyType), nullable=True
@@ -190,9 +196,11 @@ class LoanProductFee(Base):
     fee_name: Mapped[str] = mapped_column(String(255), nullable=False)
     fee_type: Mapped[FeeType] = mapped_column(Enum(FeeType), nullable=False)
     fee_value: Mapped[Decimal] = mapped_column(Numeric(15, 4), nullable=False)
+    # What the percentage is calculated on (only relevant when fee_type=percentage)
+    fee_basis: Mapped[str | None] = mapped_column(String(50), nullable=True, default="principal")
+    # Options: "principal" | "savings" | "deposit" | "loan_balance"
     affects_principal: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     show_in_statement: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     ledger_account_name: Mapped[str] = mapped_column(String(255), nullable=False)
 
-    # Relationships
     product: Mapped["LoanProduct"] = relationship("LoanProduct", back_populates="fees")

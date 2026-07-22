@@ -100,3 +100,6 @@ class Loan(Base):
     reschedules: Mapped[list["LoanReschedule"]] = relationship(  # type: ignore[name-defined]
         "LoanReschedule", back_populates="loan", cascade="all, delete-orphan"
     )
+    guarantors: Mapped[list["LoanGuarantor"]] = relationship(  # type: ignore[name-defined]
+        "LoanGuarantor", back_populates="loan", cascade="all, delete-orphan"
+    )

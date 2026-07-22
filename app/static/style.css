@@ -25,6 +25,22 @@
   --font: 'Inter', system-ui, sans-serif;
 }
 
+[data-theme="light"] {
+  --bg: #f4f5f7;
+  --bg-card: #ffffff;
+  --bg-input: #f8f9fb;
+  --border: #dde1ea;
+  --border-focus: #5b5fc7;
+  --text: #1a1d2e;
+  --text-muted: #6b7080;
+  --text-dim: #9ca3af;
+  --primary-light: rgba(91, 95, 199, 0.1);
+  --success-light: rgba(45, 206, 137, 0.1);
+  --warning-light: rgba(245, 166, 35, 0.1);
+  --danger-light: rgba(245, 54, 92, 0.1);
+  --shadow: 0 4px 24px rgba(0,0,0,0.08);
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');

@@ -8,7 +8,7 @@
 <div class="alert alert-danger"><i data-feather="alert-triangle" style="width: 14px; height: 14px;"></i> {{ error }}</div>
 {% endif %}
 
-<form method="POST" action="/loans/apply">
+<form method="POST" action="/loans/apply" id="loan-form">
 
   <div class="card">
     <div class="card-header"><h2>Step 1 — Select Member &amp; Product</h2></div>
@@ -16,27 +16,48 @@
       <div class="form-grid">
         <div class="form-group">
           <label>Borrower *</label>
-          <select name="member_id" required id="member-select">
+          <select name="member_id" required id="member-select" onchange="onMemberChange(this)">
             <option value="">— Select member —</option>
             {% for m in members %}
-            <option value="{{ m.id }}">{{ m.name }} (Savings: KES {{ "{:,.0f}".format(m.savings_balance) }} | Score: {{ m.credit_score.score if m.credit_score else 'N/A' }})</option>
+            <option value="{{ m.id }}"
+              data-savings="{{ m.savings_balance }}"
+              data-deposits="{{ m.total_deposits }}"
+              data-name="{{ m.name }}">
+              {{ m.name }} (Savings: KES {{ "{:,.0f}".format(m.savings_balance) }} | Deposits: KES {{ "{:,.0f}".format(m.total_deposits) }} | Score: {{ m.credit_score.score if m.credit_score else 'N/A' }})
+            </option>
             {% endfor %}
           </select>
         </div>
         <div class="form-group">
-          <label>Loan Product (Active Version) *</label>
-          <select name="loan_product_id" required id="product-select" onchange="loadProductDetails(this)">
+          <label>Loan Product *</label>
+          <select name="loan_product_id" required id="product-select" onchange="onProductChange(this)">
             <option value="">— Select product —</option>
             {% for p in products %}
-            <option value="{{ p.id }}">{{ p.product_name }} [{{ p.product_code }} v{{ p.version_number }}]</option>
+            <option value="{{ p.id }}"
+              data-requires-guarantor="{{ p.requires_guarantor | lower }}"
+              data-requires-security="{{ p.requires_security | lower }}"
+              data-requires-deposit="{{ p.requires_deposit | lower }}"
+              data-security-type="{{ p.security_type.value if p.security_type else '' }}"
+              data-security-value="{{ p.security_value or '' }}"
+              data-deposit-type="{{ p.deposit_type.value if p.deposit_type else '' }}"
+              data-deposit-value="{{ p.deposit_value or '' }}"
+              data-method="{{ p.interest_method.value }}"
+              data-rate="{{ p.interest_rate }}"
+              data-period="{{ p.interest_period.value }}"
+              data-frequency="{{ p.repayment_frequency.value }}"
+              data-max-periods="{{ p.max_repayment_period or '' }}"
+              data-fees='{{ p.fees_json }}'>
+              {{ p.product_name }} [{{ p.product_code }} v{{ p.version_number }}]
+            </option>
             {% endfor %}
           </select>
         </div>
       </div>
 
-      <!-- Product info panel (populated via JS) -->
-      <div id="product-info" class="form-section" style="display:none; margin-top:16px">
-        <div class="form-section-title">Product Details</div>
+      <!-- Product info panel -->
+      <div id="product-info" style="display:none; margin-top:16px; padding:14px; background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius-sm)">
+        <div style="font-size:11px; font-weight:600; text-transform:uppercase; color:var(--text-muted); margin-bottom:8px">Product Details</div>
+        <div id="product-info-content" class="info-grid"></div>
       </div>
     </div>
   </div>
@@ -47,12 +68,12 @@
       <div class="form-grid">
         <div class="form-group">
           <label>Requested Principal (KES) *</label>
-          <input name="principal_amount" type="number" step="0.01" required placeholder="e.g. 100000">
+          <input name="principal_amount" id="principal-input" type="number" step="1" required placeholder="e.g. 100000" oninput="recalcCharges()">
         </div>
         <div class="form-group">
-          <label>Number of Repayment Periods</label>
-          <input name="num_periods" type="number" min="1" placeholder="Leave blank to use product default">
-          <span class="form-hint">If blank, the product's configured maximum period is used.</span>
+          <label id="periods-label">Number of Repayment Periods *</label>
+          <input name="num_periods" id="periods-input" type="number" min="1" placeholder="e.g. 12" required oninput="recalcCharges()">
+          <span class="form-hint" id="periods-hint">Number of repayment installments.</span>
         </div>
         <div class="form-group">
           <label>Application Date *</label>
@@ -61,39 +82,50 @@
         <div class="form-group">
           <label>Disbursement Date</label>
           <input name="disbursement_date" type="date" value="{{ today }}">
-          <span class="form-hint">Defaults to application date if left blank</span>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Guarantor (shown conditionally by JS) -->
-  <div class="card" id="guarantor-block" style="display:none">
-    <div class="card-header"><h2>Step 3 — Guarantor</h2></div>
+  <!-- Charges Summary (shown after principal entered) -->
+  <div class="card" id="charges-block" style="display:none">
+    <div class="card-header"><h2>Charges &amp; Fees at Disbursement</h2></div>
     <div class="card-body">
-      <div class="form-grid">
-        <div class="form-group">
-          <label>Guarantor Member *</label>
-          <select name="guarantor_member_id" id="guarantor-select">
-            <option value="">— Select guarantor —</option>
-            {% for m in members %}
-            <option value="{{ m.id }}">{{ m.name }}</option>
-            {% endfor %}
-          </select>
-          <span class="form-hint">Must be a different member from the borrower.</span>
-        </div>
-      </div>
+      <div id="charges-content"></div>
     </div>
   </div>
 
-  <!-- Security (shown conditionally by JS) -->
+  <!-- Guarantors -->
+  <div class="card" id="guarantor-block" style="display:none">
+    <div class="card-header">
+      <h2>Guarantors</h2>
+      <button type="button" class="btn btn-outline btn-sm" onclick="addGuarantorRow()">
+        <i data-feather="plus" style="width:14px;height:14px"></i> Add Guarantor
+      </button>
+    </div>
+    <div class="card-body">
+      <div id="guarantor-rows"></div>
+      <span class="form-hint">At least one guarantor required. Cannot be the borrower.</span>
+    </div>
+  </div>
+
+  <!-- Security -->
   <div class="card" id="security-block" style="display:none">
     <div class="card-header"><h2>Security / Collateral</h2></div>
     <div class="card-body">
+      <div id="security-info" class="alert alert-info" style="margin-bottom:14px; font-size:13px"></div>
       <div class="form-grid">
         <div class="form-group">
-          <label>Security Value Provided (KES)</label>
-          <input name="security_provided_value" type="number" step="0.01" placeholder="Market value of collateral">
+          <label>Security Source</label>
+          <select name="security_source" id="security-source">
+            <option value="manual">Manual / Asset — Enter Value</option>
+            <option value="savings">Use Member Savings</option>
+            <option value="deposit">Use Member Deposit</option>
+          </select>
+        </div>
+        <div class="form-group" id="security-value-group">
+          <label>Security Value (KES)</label>
+          <input name="security_provided_value" type="number" step="1" id="security-value-input" placeholder="Market value of collateral">
         </div>
         <div class="form-group">
           <label>Security Notes</label>
@@ -103,23 +135,222 @@
     </div>
   </div>
 
-  <!-- Deposit (shown conditionally by JS) -->
+  <!-- Deposit -->
   <div class="card" id="deposit-block" style="display:none">
     <div class="card-header"><h2>Upfront Deposit</h2></div>
     <div class="card-body">
+      <div id="deposit-info" class="alert alert-info" style="margin-bottom:14px; font-size:13px"></div>
       <div class="form-grid">
         <div class="form-group">
-          <label>Deposit Amount Collected (KES)</label>
-          <input name="deposit_paid_amount" type="number" step="0.01" placeholder="Amount collected from member">
+          <label>Deposit Amount (KES)</label>
+          <input name="deposit_paid_amount" type="number" step="1" id="deposit-input" placeholder="Amount collected from member">
         </div>
       </div>
     </div>
   </div>
 
   <div class="flex gap-2">
-    <button type="submit" class="btn btn-primary"><i data-feather="check-circle" style="width: 16px; height: 16px;"></i> Submit Loan Application</button>
+    <button type="submit" class="btn btn-primary">
+      <i data-feather="check-circle" style="width: 16px; height: 16px;"></i> Submit Loan Application
+    </button>
     <a href="/loans" class="btn btn-outline">Cancel</a>
   </div>
 
 </form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Member data cache
+let currentMember = null;
+let currentProduct = null;
+
+function onMemberChange(sel) {
+  const opt = sel.options[sel.selectedIndex];
+  currentMember = opt.value ? {
+    id: opt.value,
+    name: opt.dataset.name,
+    savings: parseFloat(opt.dataset.savings) || 0,
+    deposits: parseFloat(opt.dataset.deposits) || 0,
+  } : null;
+  updateSecurityDepositInfo();
+  recalcCharges();
+}
+
+function onProductChange(sel) {
+  const opt = sel.options[sel.selectedIndex];
+  if (!opt.value) {
+    currentProduct = null;
+    document.getElementById('product-info').style.display = 'none';
+    document.getElementById('guarantor-block').style.display = 'none';
+    document.getElementById('security-block').style.display = 'none';
+    document.getElementById('deposit-block').style.display = 'none';
+    document.getElementById('charges-block').style.display = 'none';
+    return;
+  }
+  currentProduct = {
+    requiresGuarantor: opt.dataset.requiresGuarantor === 'true',
+    requiresSecurity: opt.dataset.requiresSecurity === 'true',
+    requiresDeposit: opt.dataset.requiresDeposit === 'true',
+    securityType: opt.dataset.securityType,
+    securityValue: parseFloat(opt.dataset.securityValue) || 0,
+    depositType: opt.dataset.depositType,
+    depositValue: parseFloat(opt.dataset.depositValue) || 0,
+    method: opt.dataset.method,
+    rate: parseFloat(opt.dataset.rate) || 0,
+    period: opt.dataset.period,
+    frequency: opt.dataset.frequency,
+    maxPeriods: opt.dataset.maxPeriods,
+    fees: JSON.parse(opt.dataset.fees || '[]'),
+  };
+
+  // Product info panel
+  document.getElementById('product-info').style.display = 'block';
+  document.getElementById('product-info-content').innerHTML = `
+    <div class="info-item"><label>Method</label><div class="val">${currentProduct.method.replace('_',' ')}</div></div>
+    <div class="info-item"><label>Rate</label><div class="val">${currentProduct.rate}% / ${currentProduct.period}</div></div>
+    <div class="info-item"><label>Repayment</label><div class="val">${currentProduct.frequency}</div></div>
+    <div class="info-item"><label>Default Periods</label><div class="val">${currentProduct.maxPeriods || '—'}</div></div>
+    ${currentProduct.requiresGuarantor ? '<div class="info-item"><label>Guarantor</label><div class="val" style="color:var(--warning)">Required</div></div>' : ''}
+    ${currentProduct.requiresSecurity ? '<div class="info-item"><label>Security</label><div class="val" style="color:var(--warning)">Required</div></div>' : ''}
+    ${currentProduct.requiresDeposit ? '<div class="info-item"><label>Deposit</label><div class="val" style="color:var(--warning)">Required</div></div>' : ''}
+  `;
+
+  // Set default periods and update label based on frequency
+  const freqLabels = {
+    daily: 'months', weekly: 'months', monthly: 'months', yearly: 'years'
+  };
+  const freqHints = {
+    daily: 'Enter months — system converts to daily payments (e.g. 6 = 180 daily installments)',
+    weekly: 'Enter months — system converts to weekly payments (e.g. 6 = 26 weekly installments)',
+    monthly: 'e.g. 12 = 12 monthly payments',
+    yearly: 'e.g. 3 = 3-year loan',
+  };
+  const freq = currentProduct.frequency;
+  const label = freqLabels[freq] || 'periods';
+  document.getElementById('periods-label').textContent = `Number of Repayment Periods (${label}) *`;
+  document.getElementById('periods-hint').textContent = freqHints[freq] || 'Number of installments.';
+  if (currentProduct.maxPeriods) {
+    document.getElementById('periods-input').placeholder = currentProduct.maxPeriods;
+  }
+
+  document.getElementById('guarantor-block').style.display = currentProduct.requiresGuarantor ? 'block' : 'none';
+  document.getElementById('security-block').style.display = currentProduct.requiresSecurity ? 'block' : 'none';
+  document.getElementById('deposit-block').style.display = currentProduct.requiresDeposit ? 'block' : 'none';
+
+  updateSecurityDepositInfo();
+  recalcCharges();
+  feather.replace();
+}
+
+function updateSecurityDepositInfo() {
+  if (!currentProduct || !currentMember) return;
+  const p = currentProduct;
+  const m = currentMember;
+
+  if (p.requiresSecurity) {
+    const secInfo = document.getElementById('security-info');
+    if (p.securityType === 'percentage') {
+      secInfo.textContent = `This product requires security of ${p.securityValue}% of principal. Member savings: KES ${m.savings.toLocaleString()} | Member deposits: KES ${m.deposits.toLocaleString()}`;
+    } else if (p.securityType === 'fixed_amount') {
+      secInfo.textContent = `Required security: KES ${p.securityValue.toLocaleString()}. Member savings: KES ${m.savings.toLocaleString()} | Member deposits: KES ${m.deposits.toLocaleString()}`;
+    } else {
+      secInfo.textContent = `Member savings: KES ${m.savings.toLocaleString()} | Member deposits: KES ${m.deposits.toLocaleString()}`;
+    }
+  }
+
+  if (p.requiresDeposit) {
+    const depInfo = document.getElementById('deposit-info');
+    const principal = parseFloat(document.getElementById('principal-input').value) || 0;
+    let required = 0;
+    if (p.depositType === 'percentage' && principal > 0) {
+      required = principal * p.depositValue / 100;
+    } else if (p.depositType === 'fixed_amount') {
+      required = p.depositValue;
+    }
+    depInfo.textContent = `Required deposit: KES ${required.toLocaleString()}. Member savings: KES ${m.savings.toLocaleString()} | Member deposits: KES ${m.deposits.toLocaleString()}`;
+    if (required > 0) document.getElementById('deposit-input').value = Math.round(required);
+  }
+}
+
+function recalcCharges() {
+  if (!currentProduct) return;
+  const principal = parseFloat(document.getElementById('principal-input').value) || 0;
+  const periods = parseInt(document.getElementById('periods-input').value) || parseInt(currentProduct.maxPeriods) || 12;
+  if (principal <= 0) { document.getElementById('charges-block').style.display = 'none'; return; }
+
+  const p = currentProduct;
+  const fees = p.fees || [];
+  let rows = '';
+  let total = 0;
+
+  fees.forEach(f => {
+    const amt = f.fee_type === 'percentage' ? principal * f.fee_value / 100 : f.fee_value;
+    total += amt;
+    rows += `<tr><td>${f.fee_name}</td><td>${f.fee_type === 'percentage' ? f.fee_value + '% of principal' : 'Fixed'}</td><td class="text-right">KES ${Math.round(amt).toLocaleString()}</td></tr>`;
+  });
+
+  // Security
+  if (p.requiresSecurity && p.securityType === 'percentage') {
+    const amt = principal * p.securityValue / 100;
+    rows += `<tr><td>Security Required</td><td>${p.securityValue}% of principal</td><td class="text-right">KES ${Math.round(amt).toLocaleString()}</td></tr>`;
+  } else if (p.requiresSecurity && p.securityType === 'fixed_amount') {
+    rows += `<tr><td>Security Required</td><td>Fixed</td><td class="text-right">KES ${Math.round(p.securityValue).toLocaleString()}</td></tr>`;
+  }
+
+  // Deposit
+  if (p.requiresDeposit) {
+    const amt = p.depositType === 'percentage' ? principal * p.depositValue / 100 : p.depositValue;
+    total += amt;
+    rows += `<tr><td>Upfront Deposit</td><td>${p.depositType === 'percentage' ? p.depositValue + '% of principal' : 'Fixed'}</td><td class="text-right">KES ${Math.round(amt).toLocaleString()}</td></tr>`;
+  }
+
+  if (!rows) { document.getElementById('charges-block').style.display = 'none'; return; }
+
+  document.getElementById('charges-block').style.display = 'block';
+  document.getElementById('charges-content').innerHTML = `
+    <table>
+      <thead><tr><th>Charge</th><th>Basis</th><th class="text-right">Amount</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr style="font-weight:600"><td colspan="2">Total Charges</td><td class="text-right amount-out">KES ${Math.round(total).toLocaleString()}</td></tr></tfoot>
+    </table>
+    <div class="alert alert-info" style="margin-top:12px; font-size:12px">
+      Net disbursement to member: <strong>KES ${Math.round(principal - total).toLocaleString()}</strong> (principal minus charges that affect disbursed amount)
+    </div>
+  `;
+  feather.replace();
+  updateSecurityDepositInfo();
+}
+
+// Multiple guarantors
+const members = [
+  {% for m in members %}
+  { id: {{ m.id }}, name: "{{ m.name }}" },
+  {% endfor %}
+];
+
+function addGuarantorRow() {
+  const container = document.getElementById('guarantor-rows');
+  const idx = container.querySelectorAll('.guarantor-row').length;
+  const row = document.createElement('div');
+  row.className = 'guarantor-row';
+  row.style.cssText = 'display:flex; gap:10px; align-items:center; margin-bottom:10px';
+  const options = members.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+  row.innerHTML = `
+    <select name="guarantor_ids" style="flex:1">
+      <option value="">— Select guarantor —</option>
+      ${options}
+    </select>
+    <button type="button" class="btn btn-danger btn-xs" onclick="this.closest('.guarantor-row').remove()">Remove</button>
+  `;
+  container.appendChild(row);
+  feather.replace();
+}
+
+// Auto-add first guarantor row when block shown
+document.addEventListener('DOMContentLoaded', () => {
+  const block = document.getElementById('guarantor-block');
+  if (block && block.style.display !== 'none') addGuarantorRow();
+});
+</script>
 {% endblock %}

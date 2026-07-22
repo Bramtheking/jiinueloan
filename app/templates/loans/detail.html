@@ -59,26 +59,37 @@
         </div>
       </div>
       <div class="info-item"><label>Guarantor</label>
-        <div class="val">{{ loan.guarantor.name if loan.guarantor else '—' }}</div>
+        <div class="val">
+          {% if loan.guarantors %}
+            {% for g in loan.guarantors %}
+              {{ g.member.name }}{% if not loop.last %}, {% endif %}
+            {% endfor %}
+            {% if loan.guarantor %}
+              {% if loan.guarantors | length == 0 %}{{ loan.guarantor.name }}{% endif %}
+            {% endif %}
+          {% elif loan.guarantor %}
+            {{ loan.guarantor.name }}
+          {% else %}—{% endif %}
+        </div>
       </div>
       <div class="info-item"><label>Principal</label>
-        <div class="val">KES {{ "{:,.2f}".format(loan.principal_amount) }}</div>
+        <div class="val">KES {{ "{:,.0f}".format(loan.principal_amount) }}</div>
       </div>
       <div class="info-item"><label>Outstanding Balance</label>
         <div class="val {% if loan.outstanding_balance > 0 %}amount-out{% else %}amount-in{% endif %}">
-          KES {{ "{:,.2f}".format(loan.outstanding_balance) }}
+          KES {{ "{:,.0f}".format(loan.outstanding_balance) }}
         </div>
       </div>
       <div class="info-item"><label>Applied</label><div class="val">{{ loan.application_date }}</div></div>
       <div class="info-item"><label>Disbursed</label><div class="val">{{ loan.disbursement_date or '—' }}</div></div>
       {% if loan.security_provided_value %}
-      <div class="info-item"><label>Security Value</label><div class="val">KES {{ "{:,.2f}".format(loan.security_provided_value) }}</div></div>
+      <div class="info-item"><label>Security Value</label><div class="val">KES {{ "{:,.0f}".format(loan.security_provided_value) }}</div></div>
       {% endif %}
       {% if loan.security_provided_notes %}
       <div class="info-item"><label>Security Notes</label><div class="val">{{ loan.security_provided_notes }}</div></div>
       {% endif %}
       {% if loan.deposit_paid_amount %}
-      <div class="info-item"><label>Deposit Paid</label><div class="val">KES {{ "{:,.2f}".format(loan.deposit_paid_amount) }}</div></div>
+      <div class="info-item"><label>Deposit Paid</label><div class="val">KES {{ "{:,.0f}".format(loan.deposit_paid_amount) }}</div></div>
       {% endif %}
     </div>
   </div>
@@ -110,11 +121,25 @@
         <h2>Expected Repayment Schedule</h2>
         <span class="text-muted" style="font-size:12px">Generated at disbursement</span>
       </div>
+      {% if loan.loan_product %}
+      <div style="padding:10px 16px; font-size:12px; color:var(--text-muted); border-bottom:1px solid var(--border)">
+        {% set freq = loan.loan_product.repayment_frequency.value %}
+        {% set periods = loan.num_periods or 0 %}
+        Rate: <strong>{{ loan.loan_product.interest_rate }}%</strong> / {{ loan.loan_product.interest_period.value }} ·
+        Repayment: <strong>{{ freq }}</strong> ·
+        <strong>{{ periods }} {{ freq }} installments</strong>
+        {% if freq == 'daily' %}
+        (≈ {{ (periods / 30) | round(1) }} months)
+        {% elif freq == 'weekly' %}
+        (≈ {{ (periods / 4.33) | round(1) }} months)
+        {% endif %}
+      </div>
+      {% endif %}
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>#</th>
+              <th>{% if loan.loan_product %}{{ loan.loan_product.repayment_frequency.value | title }} #{% else %}#{% endif %}</th>
               <th>Due Date</th>
               <th class="text-right">Opening</th>
               <th class="text-right">Principal</th>
@@ -128,10 +153,10 @@
             <tr {% if s.is_cancelled %}style="opacity:0.5; text-decoration:line-through"{% endif %}>
               <td class="text-muted">{{ s.period_number }}</td>
               <td>{{ s.due_date }}</td>
-              <td class="text-right text-muted">{{ "{:,.2f}".format(s.opening_balance) }}</td>
-              <td class="text-right text-muted">{{ "{:,.2f}".format(s.expected_principal) }}</td>
-              <td class="text-right text-muted">{{ "{:,.2f}".format(s.expected_interest) }}</td>
-              <td class="text-right amount-in" style="font-weight:600">{{ "{:,.2f}".format(s.expected_amount) }}</td>
+              <td class="text-right text-muted">{{ "{:,.0f}".format(s.opening_balance) }}</td>
+              <td class="text-right text-muted">{{ "{:,.0f}".format(s.expected_principal) }}</td>
+              <td class="text-right text-muted">{{ "{:,.0f}".format(s.expected_interest) }}</td>
+              <td class="text-right amount-in" style="font-weight:600">{{ "{:,.0f}".format(s.expected_amount) }}</td>
               <td>
                 {% if s.is_cancelled %}<span class="badge badge-secondary">Cancelled</span>
                 {% elif s.is_paid %}<span class="badge badge-success">Paid</span>
@@ -173,13 +198,13 @@
           <tr>
             <td class="text-muted">{{ loop.index }}</td>
             <td>{{ r.payment_date }}</td>
-            <td class="text-right amount-in">{{ "{:,.2f}".format(r.amount_paid) }}</td>
+            <td class="text-right amount-in">{{ "{:,.0f}".format(r.amount_paid) }}</td>
             <td class="text-right {% if r.amount_to_penalty > 0 %}amount-out{% else %}text-muted{% endif %}">
-              {{ "{:,.2f}".format(r.amount_to_penalty) }}
+              {{ "{:,.0f}".format(r.amount_to_penalty) }}
             </td>
-            <td class="text-right text-muted">{{ "{:,.2f}".format(r.amount_to_interest) }}</td>
-            <td class="text-right text-muted">{{ "{:,.2f}".format(r.amount_to_principal) }}</td>
-            <td class="text-right">{{ "{:,.2f}".format(r.remaining_balance_after) }}</td>
+            <td class="text-right text-muted">{{ "{:,.0f}".format(r.amount_to_interest) }}</td>
+            <td class="text-right text-muted">{{ "{:,.0f}".format(r.amount_to_principal) }}</td>
+            <td class="text-right">{{ "{:,.0f}".format(r.remaining_balance_after) }}</td>
             <td>
               {% if r.is_underpaid %}<span class="badge badge-warning">Underpaid</span>{% endif %}
               {% if r.is_overpaid %}<span class="badge badge-info">Overpaid</span>{% endif %}
@@ -207,7 +232,7 @@
           </div>
           <div class="form-group" style="margin-bottom:12px">
             <label>Amount Paid (KES) *</label>
-            <input name="amount_paid" type="number" step="0.01" required
+            <input name="amount_paid" type="number" step="1" required
                    placeholder="e.g. 10000">
           </div>
           <div class="form-group" style="margin-bottom:16px">
@@ -215,7 +240,13 @@
             <textarea name="notes" placeholder="Optional payment notes" rows="2"></textarea>
           </div>
           <div class="alert alert-info" style="font-size:12px">
-            Allocation order: <strong>Penalty → Interest → Principal</strong>
+            Allocation order: <strong>
+              {% if loan.loan_product and loan.loan_product.allocation_order %}
+                {{ loan.loan_product.allocation_order.replace(',', ' → ').title() }}
+              {% else %}
+                Penalty → Interest → Principal
+              {% endif %}
+            </strong>
           </div>
           <button type="submit" class="btn btn-success" style="width:100%;margin-top:10px">
             <i data-feather="dollar-sign" style="width: 16px; height: 16px;"></i> Record Payment
@@ -249,8 +280,8 @@
             <tr {% if txn.is_reversed %}style="opacity:0.45; text-decoration:line-through"{% endif %}>
               <td class="text-muted">{{ txn.transaction_date }}</td>
               <td style="font-size:11px">{{ txn.account_name }}</td>
-              <td class="text-right amount-in">{% if txn.money_in %}{{ "{:,.2f}".format(txn.money_in) }}{% else %}—{% endif %}</td>
-              <td class="text-right amount-out">{% if txn.money_out %}{{ "{:,.2f}".format(txn.money_out) }}{% else %}—{% endif %}</td>
+              <td class="text-right amount-in">{% if txn.money_in %}{{ "{:,.0f}".format(txn.money_in) }}{% else %}—{% endif %}</td>
+              <td class="text-right amount-out">{% if txn.money_out %}{{ "{:,.0f}".format(txn.money_out) }}{% else %}—{% endif %}</td>
             </tr>
             {% else %}
             <tr class="table-empty"><td colspan="4">No ledger entries.</td></tr>
@@ -339,7 +370,7 @@
         
         <div class="info-grid" style="margin-bottom:15px; border:1px solid var(--border); padding:10px; border-radius:6px; background:var(--bg-secondary);">
             <div class="info-item" style="margin-bottom:8px;"><label>Outstanding Balance</label>
-                <div class="val amount-out">KES {{ "{:,.2f}".format(loan.outstanding_balance) }}</div>
+                <div class="val amount-out">KES {{ "{:,.0f}".format(loan.outstanding_balance) }}</div>
             </div>
             {% if loan.loan_product and loan.loan_product.offset_fee_value %}
             <div class="info-item" style="margin-bottom:8px;"><label>Offset Fee</label>

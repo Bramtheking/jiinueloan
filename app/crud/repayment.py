@@ -93,6 +93,7 @@ def create_repayment(db: Session, loan_id: int, data: RepaymentCreate) -> Repaym
         interest_due=interest_due,
         outstanding_principal=loan.outstanding_balance,
         expected_installment=expected_installment,
+        allocation_order=product.allocation_order or "penalty,interest,principal",
     )
 
     # --- 5. Record repayment ---
@@ -116,6 +117,32 @@ def create_repayment(db: Session, loan_id: int, data: RepaymentCreate) -> Repaym
     if loan.outstanding_balance <= Decimal("0"):
         loan.status = LoanStatus.closed
         loan.outstanding_balance = Decimal("0")
+
+    # --- 6b. Mark schedule entries as paid up to the payment date ---
+    from app.models.loan_schedule import LoanScheduleEntry
+    unpaid_due = (
+        db.query(LoanScheduleEntry)
+        .filter(
+            LoanScheduleEntry.loan_id == loan_id,
+            LoanScheduleEntry.is_paid == False,
+            LoanScheduleEntry.is_cancelled == False,
+            LoanScheduleEntry.due_date <= data.payment_date,
+        )
+        .order_by(LoanScheduleEntry.due_date)
+        .all()
+    )
+    remaining_to_allocate = allocation.amount_to_principal + allocation.amount_to_interest
+    for entry in unpaid_due:
+        if remaining_to_allocate >= entry.expected_amount:
+            entry.is_paid = True
+            entry.amount_actually_paid = entry.expected_amount
+            entry.is_missed = False
+            remaining_to_allocate -= entry.expected_amount
+        elif remaining_to_allocate > 0:
+            # partial payment — mark amount but don't mark fully paid
+            entry.amount_actually_paid = entry.amount_actually_paid + remaining_to_allocate
+            remaining_to_allocate = Decimal("0")
+            break
 
     # --- 7. Ledger ---
     db.add(LedgerTransaction(
